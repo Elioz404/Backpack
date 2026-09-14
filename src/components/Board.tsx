@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -142,6 +142,8 @@ export function Board({
                 : `${total} open${claimed > 0 ? ` · ${claimed} taken` : ""}`}
             </p>
           </div>
+
+          <FirstRun householdId={householdId} />
 
           {cards === undefined ? (
             <Skeleton />
@@ -342,6 +344,57 @@ function KeepBoard({
       <Button size="sm" tone="primary" disabled={busy} onClick={keep}>
         {busy ? "One moment…" : "Keep this board"}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * The one thing worth saying on a board nobody has used yet.
+ *
+ * A new household arrives with sample cards so it is not empty, and for the
+ * first few seconds that is all a visitor can see — which makes the whole app
+ * look like a mock-up of itself. The sample is honest and stays; what was
+ * missing was the sentence telling them that the interesting part is one
+ * press away, and the press itself, without hunting for it in the rail.
+ *
+ * It removes itself the moment the board has read anything real, because from
+ * then on the board is the answer and this is in the way.
+ */
+function FirstRun({ householdId }: { householdId: Id<"households"> }) {
+  const health = useQuery(api.sources.health, { householdId });
+  const schools = useQuery(api.schools.list, { householdId });
+  const start = useAction(api.crawls.start);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const school = schools?.[0];
+  if (health === undefined || !health.sampleOnly || school === undefined) {
+    return null;
+  }
+
+  async function read() {
+    if (school === undefined) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await start({ householdId, schoolId: school._id });
+    } catch (caught) {
+      setError(explainError(caught, "Could not start reading."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule pb-4 text-[13.5px] text-ink-soft">
+      <span>
+        These are a sample, so the board has something on it. Everything else
+        here is real —
+      </span>
+      <Button size="sm" tone="primary" disabled={busy} onClick={read}>
+        {busy ? "Starting…" : `Read ${school.name}`}
+      </Button>
+      {error ? <span className="text-[12px] text-overdue">{error}</span> : null}
     </div>
   );
 }

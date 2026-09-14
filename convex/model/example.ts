@@ -126,20 +126,32 @@ const SAMPLES: Sample[] = [
   },
 ];
 
+/**
+ * The three sources the sample cards cite.
+ *
+ * `(sample)` rather than a sentence of disclaimer. The label sits on every
+ * card, so a long one repeated nine times and cut off mid-word was the first
+ * thing anyone saw — a board that read as a mock-up before they had pressed
+ * anything. One word carries the same fact, and the drawer behind each card
+ * still shows the whole source and its reserved-TLD address.
+ *
+ * `seeded` marks them so the board can tell a sample-only household from one
+ * that has read something real.
+ */
 const SOURCES = {
   newsletter: {
     kind: "page" as const,
-    title: "Parent newsletter — an example, not a real school",
+    title: "Parent newsletter (sample)",
     url: "https://example-primary.test/newsletters/september",
   },
   calendar: {
     kind: "page" as const,
-    title: "Term dates — an example, not a real school",
+    title: "Term dates (sample)",
     url: "https://example-primary.test/calendar",
   },
   email: {
     kind: "email" as const,
-    title: "From the school office — an example, not a real school",
+    title: "From the school office (sample)",
     from: "office@example-primary.test",
   },
 };
@@ -241,6 +253,7 @@ export async function fill(
       householdId,
       kind: spec.kind,
       title: spec.title,
+      seeded: true,
       url: "url" in spec ? spec.url : undefined,
       fromAddress: "from" in spec ? spec.from : undefined,
       contentHash: hash,

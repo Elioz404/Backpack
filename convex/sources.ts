@@ -47,6 +47,11 @@ export const health = query({
     reading: v.number(),
     /** Failed, or waiting so long that its job is gone. Worth a retry. */
     stuck: v.number(),
+    /**
+     * Nothing on this board came from a real page or a real message yet — it
+     * is still only the sample a new household starts with.
+     */
+    sampleOnly: v.boolean(),
     lastError: v.union(v.string(), v.null()),
   }),
   handler: async (ctx, args) => {
@@ -60,9 +65,11 @@ export const health = query({
     const cutoff = Date.now() - STUCK_AFTER_MS;
     let reading = 0;
     let stuck = 0;
+    let real = 0;
     let lastError: string | null = null;
 
     for (const source of sources) {
+      if (source.seeded !== true) real += 1;
       // `done` is finished and `skipped` is a decision, not a failure: a page
       // with nothing on it worth doing was read correctly.
       if (source.extraction === "done" || source.extraction === "skipped") {
@@ -78,7 +85,12 @@ export const health = query({
       }
     }
 
-    return { reading, stuck, lastError };
+    return {
+      reading,
+      stuck,
+      sampleOnly: sources.length > 0 && real === 0,
+      lastError,
+    };
   },
 });
 

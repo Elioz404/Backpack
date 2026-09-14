@@ -220,6 +220,15 @@ export default defineSchema({
     capturedAt: v.number(),
     extraction: vExtractionState,
     extractionError: v.optional(v.string()),
+    /**
+     * Written by the worked example, and by nothing else.
+     *
+     * A new board arrives with sample cards so it is not empty. The board has
+     * to be able to tell that from a board that has actually read something,
+     * because until it has, the most useful thing on screen is the button
+     * that makes it real.
+     */
+    seeded: v.optional(v.boolean()),
   })
     .index("by_household", ["householdId"])
     .index("by_household_and_hash", ["householdId", "contentHash"])

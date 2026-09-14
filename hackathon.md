@@ -7,12 +7,12 @@
 - **Repo:** https://github.com/Elioz404/Backpack (public)
 - **Frontend:** Convex static hosting
 - **Convex deployment:** https://resilient-mastiff-559.convex.cloud (production); secret-minnow-38 (development)
-- **Components:** @convex-dev/static-hosting, @convex-dev/auth (core, username, password provider), @firecrawl/firecrawl-convex, @convex-dev/workpool, @convex-dev/rate-limiter, @convex-dev/presence
+- **Components:** @convex-dev/static-hosting, @convex-dev/auth (core, username, password and anonymous providers), @firecrawl/firecrawl-convex, @convex-dev/workpool, @convex-dev/rate-limiter, @convex-dev/presence
 - **Convex features:** schema with indexes, reactive queries, mutations, actions, internal functions, HTTP actions, typed component environment, the scheduler, pagination, cron jobs, static hosting
 - **Auth:** Convex Auth
 - **AI models:** gpt-5.6-luna (OpenAI Responses API, strict JSON schema), configurable through `OPENAI_MODEL`
-- **Started:** 2026-09-13
-- **Last updated:** 2026-09-13
+- **Started:** 2026-09-14T01:00:45Z
+- **Last updated:** 2026-09-14T18:27:39Z
 
 ## Log
 
@@ -193,7 +193,7 @@ is Web Crypto HMAC against `id.timestamp.body` with a five-minute replay window
 and a constant-time compare, rather than the `svix` package, which targets Node
 and would force the webhook route into a Node action. Nothing was lost by it —
 the state that matters was always in our own tables — and the household now has
-a real address, `jealouscard638@agentmail.to`, created through that client.
+a real address, [redacted inbox], created through that client.
 
 **The `openai` package does not run in the Convex runtime.** It sets
 `url.username` while normalising a request, which the runtime does not
@@ -461,20 +461,133 @@ board from nine cards to fourteen for one cent.
 
 So: the starting cards are written, everything a visitor presses is real.
 
-### 2026-09-13 — state
+### 2026-09-14 - bed9271 — the other parent, by username
 
-Live on the development deployment at https://secret-minnow-38.convex.site,
-`tsc --noEmit` clean across both projects.
+The product's whole claim is two people on one board, and there was no way to
+add the second one: `addMember` took a user id with nothing in the interface to
+obtain one, so a household could only ever hold the person who created it. It
+now takes the username they signed up with, resolved through the auth
+component, and the rail asks for it. By username rather than an emailed link,
+so the central feature does not wait on mail being deliverable. Convex
+features: mutation, component query (`convex/households.ts`,
+`src/components/Rail.tsx`).
 
-Proven against real services, end to end: Convex Auth, the board and its live
-updates, Firecrawl's durable crawl (40 real pages ingested), AgentMail inbox
-creation, signed inbound webhooks, and OpenAI extraction — a real email became
-five correctly typed, dated and quoted cards for 0.127 cents.
+### 2026-09-14 - b113dc9 — one command to deploy
 
-**Blocked on one thing: the OpenAI account has no credit.** Every extraction
-returns `credit_balance_exhausted`, so the 40 crawled pages are stored and
-queued but unread, and the board still shows only the seeded worked example —
-openly fictional, and labelled as such in `convex/seed.ts`. The moment credit
-is added, "Try reading again" reads all 40 for roughly three cents, without
-spending another Firecrawl credit. Outbound mail is likewise written but
-unsent, because drafting the question is an OpenAI call.
+`npm run build` bakes `VITE_CONVEX_URL` from `.env.local`, which is the dev
+deployment — so building by hand and uploading the result publishes a
+production site whose client talks to dev. It did, until it was caught. The
+static-hosting CLI injects the right URL when it runs the build itself, and
+`npm run deploy` is now the only path (`package.json`).
+
+### 2026-09-14 - 4163d18 — the school's reply, to the household that asked
+
+Two faults, both introduced when households moved from an inbox each to
+sub-addresses of one shared inbox. A question went out from the bare shared
+address, so the reply came back carrying no household tag; Reply-To now names
+the household's own sub-address, with a fallback to the thread the deployment
+opened when a mail client answers the From address instead.
+
+Worse, untagged mail matched `by_inbox_address` against the bare address —
+which one household still held — and the school's answer landed on a stranger's
+board. Routing now takes the tag first, then the thread, and never matches the
+shared address itself; a reply also only closes a question belonging to the
+same household (`convex/pipelines/mailIngest.ts`, `convex/questions.ts`,
+`convex/lib/agentmail.ts`).
+
+### 2026-09-14 - 3936ade — say why a sign-up was refused
+
+Six of the auth component's error codes had no message, so they all surfaced as
+"Something went wrong" — including `USERNAME_TAKEN`, by some distance the most
+likely way that form fails and the easiest to act on once the form says so. Hit
+it while recording the demo (`src/components/AuthScreen.tsx`).
+
+### 2026-09-14 - cd40bd5 — the board on a large screen
+
+The layout was capped at one width forever, so on a 1080p monitor it used just
+over half the screen and the rest was empty ground. 80rem from the 2xl
+breakpoint, with a slightly wider rail (`src/components/Board.tsx`).
+
+### 2026-09-14 - c22e44c — twelve pages, not eight
+
+Eight was chosen to be frugal with the daily model allowance, but a section
+root spends its first pages on navigation: a crawl of the seeded school read
+eight pages, found nothing carrying a date, and correctly produced no cards —
+the pipeline working and looking broken. Twelve reaches the pages that carry
+deadlines and still leaves most of the day's allowance
+(`convex/model/example.ts`).
+
+### 2026-09-14 - 6e25019 — carrying a trial board onto a real account
+
+Trying Backpack without signing up gives a genuine household: a school, an
+address that receives, children, cards someone has claimed. Signing up
+afterwards minted a brand new empty user and left all of it stranded, because
+the anonymous account has no credentials to go back in with — the exact path
+someone takes once they have decided they like it.
+
+The auth component has no account linking, so the hand-off is done at the app
+level with a single-use ticket: minted by the household's owner while the trial
+session can still prove it owns the household, redeemed by whoever they sign up
+as. The household moves rather than being shared. Refused when the account
+already has one of its own, and that refusal is handed to the board to say,
+since establishing the session replaces the screen that would have said it.
+Convex features: table with indexes, mutations (`convex/schema.ts`,
+`convex/households.ts`, `src/lib/trialClaim.ts`).
+
+### 2026-09-14 - 2830a9b — bounding the deployment, not just the household
+
+Both rate limits were keyed by household: two crawls back to back then six an
+hour, five questions then twenty a day. That bounds one family and nothing
+else. `/demo` hands a household to anyone who asks, so a loop over that URL
+collects a fresh allowance every time and can spend the day's Firecrawl credits
+and the model budget by itself. The budget ceiling would stop the spending, but
+it stops it for the next honest visitor too.
+
+Two unkeyed buckets now sit alongside — one on handing out a trial board, one
+on starting a crawl at all — unkeyed because an anonymous visitor offers
+nothing stable to key on. The limiter's refusal is explained with when to come
+back rather than swallowed (`convex/lib/limits.ts`, `convex/lib/config.ts`,
+`convex/crawls.ts`, `convex/households.ts`, `src/lib/errors.ts`).
+
+### 2026-09-14 - 12250b0 — work in progress is not work that failed
+
+A page being read right now is `pending`. A page whose job died is also
+`pending`. The rail counted both as "not read yet", so every ordinary crawl
+announced a dozen failures while it was working perfectly, under a button
+offering to retry work that was already running.
+
+Pressing it did not just look wrong: `retryUnread` set each row back to
+`pending` and enqueued it again, which does not cancel the job already carrying
+that page, so those pages were read — and paid for — twice. Health now
+separates in flight from stuck, reports the first quietly and without a button,
+and offers the retry only for rows that have failed or have sat pending past
+five minutes. `skipped` is not counted at all: a page with nothing on it worth
+doing was read correctly (`convex/sources.ts`, `src/components/Rail.tsx`).
+
+### 2026-09-14 — state
+
+Live in production at https://resilient-mastiff-559.convex.site, with the whole
+product reachable without an account at `/demo` — a real anonymous session, a
+real household, a real address, every control live. `tsc --noEmit` clean across
+both projects.
+
+Proven end to end against real services, and repeatedly rather than once: a
+Firecrawl durable crawl of a real public school site reading twelve pages into
+twelve new obligations, each carrying the sentence it came from and a link back
+to the page; real inbound mail arriving at a household sub-address through the
+signed AgentMail webhook and becoming dated, typed cards; a question drafted by
+OpenAI, sent from the household address, answered from the school inbox, routed
+back by thread, read, and moving a card's deadline on its own; and two
+signed-in parents watching the same board change live, with presence showing
+both.
+
+The earlier blocker is gone — the OpenAI account has credit, and extraction
+runs — so nothing on the board depends on the seeded example any more. The
+seeded cards remain as the first thing a new household sees, still openly
+labelled as an example in `convex/model/example.ts`; everything a visitor
+presses does real work on the sponsors' APIs.
+
+Spend stays bounded by design rather than by discipline: a deployment-wide
+OpenAI ceiling (`OPENAI_BUDGET_CENTS`, defaulting to 400), per-household limits
+on the two entry points that cost money, and deployment-wide limits on handing
+out trial boards and on starting crawls at all.
