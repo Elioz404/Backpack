@@ -407,7 +407,11 @@ function SpendCard() {
 
   return (
     <section className="grid gap-2">
-      <RuledHeading trailing={`${spend.calls} calls`}>Model spend</RuledHeading>
+      <RuledHeading
+        trailing={`${spend.calls} ${spend.calls === 1 ? "call" : "calls"}`}
+      >
+        Model spend
+      </RuledHeading>
       <div className="flex items-baseline justify-between font-mono text-[11.5px] text-ink-soft">
         <span className="tabular-nums">{money(spend.spentCents)}</span>
         <span className="text-ink-faint tabular-nums">

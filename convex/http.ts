@@ -18,11 +18,18 @@ import { verifyWebhook, webhookSecret } from "./lib/agentmail";
  */
 const http = httpRouter();
 
-/** Event types that carry a message a household should see. */
-const INBOUND_EVENTS = new Set([
-  "message.received",
-  "message.received.unauthenticated",
-]);
+/**
+ * Event types that carry a message a household should see.
+ *
+ * Authenticated mail only. AgentMail also reports `message.received.spam`,
+ * `.blocked` and `.unauthenticated`, and the last of those is tempting because
+ * a forwarding hop can break SPF. But this product's whole claim is that a
+ * line on the board is something the school actually said, and ingesting mail
+ * that failed authentication would let anyone who learns a household's address
+ * put an obligation on its board. A dropped forward is a visible annoyance; an
+ * injected deadline is not.
+ */
+const INBOUND_EVENTS = new Set(["message.received"]);
 
 http.route({
   path: "/agentmail/webhook",

@@ -268,26 +268,65 @@ Verified on the production origin rather than assumed: the routes answer
 published bundle points at the production backend, and a fresh account was
 created against the empty production database — sign-up, household, board.
 
-Two gaps that are deliberate rather than missed. `AGENTMAIL_WEBHOOK_SECRET` is
-unset, so the inbound route answers 503 and refuses: without the secret there
-is no way to tell AgentMail apart from anyone who has guessed the URL, and
-refusing is the only safe answer. And AgentMail's free tier allows three
-inboxes in total, all three of which are already in use, so the first household
-created in production cannot be given an address until one is freed.
+`AGENTMAIL_WEBHOOK_SECRET` was unset at first, so the inbound route answered
+503 and refused — without the secret there is no way to tell AgentMail apart
+from anyone who has guessed the URL. The webhook was then registered against
+the production URL through AgentMail's API and its signing secret piped
+straight onto the deployment, and the route now answers **401 to an unsigned
+request and 401 to a forged signature**, which is the verification doing its
+job.
+
+It subscribes to `message.received` only. AgentMail also reports
+`.unauthenticated`, and it was tempting because a forwarding hop can break SPF
+— but this product's whole claim is that a line on the board is something the
+school actually said, and ingesting mail that failed authentication would let
+anyone who learns a household's address put an obligation on its board. A
+dropped forward is a visible annoyance; an injected deadline is not.
 
 Also removed two leftovers from the Vite template, `public/icons.svg` and
 `public/favicon.svg`, which nothing referenced and which were being uploaded on
 every deploy — the sprite still carried a Bluesky icon. The published site is
 four files.
 
+### 2026-09-14 — the whole pipeline, end to end, for the first time
+
+A real message was sent from one AgentMail inbox to the production household's
+address — a school notice about a Year 4 aquarium trip, with a consent form, a
+$12.00 fee, two dates and a packed lunch.
+
+Everything downstream ran on its own, and the ledger says exactly what it
+should: **one webhook delivery, one source, one model call**, 789 input tokens
+and 930 output, **0.127 cents**. Out of it came five cards, each with the
+sentence from the notice that supports it:
+
+| | |
+| --- | --- |
+| Return the signed consent form | form, due 26 Sept |
+| Pay the visit fee | money, US$12, due 26 Sept |
+| Note the aquarium visit | event, 30 Sept at 08:45 |
+| Pack a lunch and named water bottle | bring, 30 Sept |
+| Note that school uniform is not required | note, 30 Sept |
+
+One detail worth recording, because it looked like a bug and is the opposite.
+The notice said "Friday 26 September" and "Tuesday 30 September"; the board
+renders "Sat 26 Sept" and "Wed 30 Sept". In 2026 the 26th is a Saturday and the
+30th is a Wednesday — the notice (written by hand for the test) had
+inconsistent weekday/date pairs, and the extractor took the dates, resolved
+them in the household's zone, and rendered the true weekday rather than
+repeating the text's mistake.
+
+The board did show "1 CALLS", which was a real if small defect in the rail's
+pluralisation, now fixed.
+
 ### 2026-09-13 — state
 
 Live on the development deployment at https://secret-minnow-38.convex.site,
 `tsc --noEmit` clean across both projects.
 
-Proven against real services: Convex Auth, the board and its live updates,
-Firecrawl's durable crawl (40 real pages ingested), and AgentMail inbox
-creation.
+Proven against real services, end to end: Convex Auth, the board and its live
+updates, Firecrawl's durable crawl (40 real pages ingested), AgentMail inbox
+creation, signed inbound webhooks, and OpenAI extraction — a real email became
+five correctly typed, dated and quoted cards for 0.127 cents.
 
 **Blocked on one thing: the OpenAI account has no credit.** Every extraction
 returns `credit_balance_exhausted`, so the 40 crawled pages are stored and
