@@ -1,111 +1,202 @@
+@import "tailwindcss";
+
+/*
+  Backpack's design language.
+
+  The product is what comes home in a child's backpack: permission slips,
+  newsletters, a note about picture day. So the surface is paper, not a
+  dashboard — warm stock, ruled lines, ink, folder tabs for the kind of thing
+  each item is, and evidence set in a typewriter face because a quote from the
+  school's own notice is the one thing on screen that must read as verbatim.
+
+  Three voices:
+    Fraunces       the printed notice — titles, headings
+    Instrument Sans the hand that fills the form — UI, body
+    IBM Plex Mono   the stamp and the filing label — dates, quotes, counts
+*/
+
+@theme {
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  /* Paper and ink. */
+  --color-ground: #f4efe4;
+  --color-sheet: #fffdf8;
+  --color-sheet-sunk: #faf5ea;
+  --color-ink: #1a1713;
+  --color-ink-soft: #574f45;
+  --color-ink-faint: #8a8175;
+  --color-rule: #e5dccb;
+  --color-rule-strong: #d3c7b1;
+
+  /* Ballpoint blue: structure, links, the primary action. */
+  --color-ballpoint: #26456e;
+  --color-ballpoint-soft: #e8edf5;
+
+  /* Stationery, one per kind of obligation. */
+  --color-kind-form: #2f5d9e;
+  --color-kind-money: #2c7350;
+  --color-kind-supply: #b9752a;
+  --color-kind-schedule: #68499b;
+  --color-kind-event: #23716f;
+  --color-kind-info: #7d7366;
+
+  /* Red pen. */
+  --color-overdue: #ad2f27;
+  --color-overdue-soft: #f7e7e4;
+
+  --radius-sheet: 3px;
+}
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  color-scheme: light;
+  --paper-rule: color-mix(in oklab, var(--color-rule) 55%, transparent);
+  --stamp-tint: color-mix(in oklab, var(--color-ballpoint) 7%, transparent);
+}
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
+/*
+  Night at the kitchen table: the lamp is on, the paper is still paper.
+  Warm charcoal rather than the usual blue-black, so the stationery accents
+  stay recognisable instead of turning neon.
+*/
+:root:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    color-scheme: dark;
+    --color-ground: #1b1813;
+    --color-sheet: #252118;
+    --color-sheet-sunk: #201c15;
+    --color-ink: #f4eee3;
+    --color-ink-soft: #bcb1a0;
+    --color-ink-faint: #877c6d;
+    --color-rule: #3a332a;
+    --color-rule-strong: #4e4538;
+    --color-ballpoint: #8fb3e0;
+    --color-ballpoint-soft: #232c3a;
+    --color-kind-form: #7ba5dd;
+    --color-kind-money: #6fb98c;
+    --color-kind-supply: #d9a05c;
+    --color-kind-schedule: #a88ad4;
+    --color-kind-event: #5eb0ad;
+    --color-kind-info: #a09585;
+    --color-overdue: #e2766c;
+    --color-overdue-soft: #33201d;
+    --paper-rule: color-mix(in oklab, var(--color-rule) 70%, transparent);
+    --stamp-tint: color-mix(in oklab, var(--color-ballpoint) 12%, transparent);
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
+html,
+body,
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+  height: 100%;
 }
 
 body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
+  background-color: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
   font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  /* Stock, not a flat fill: a faint warm wash off the top-left corner. */
+  background-image: radial-gradient(
+    110% 80% at 8% 0%,
+    color-mix(in oklab, var(--color-sheet) 55%, transparent),
+    transparent 60%
+  );
+  background-attachment: fixed;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-ballpoint) 22%, transparent);
+}
+
+@layer components {
+  /* A sheet of paper: hairline edge, barely-there lift, square-ish corners. */
+  .sheet {
+    background: var(--color-sheet);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-sheet);
+    box-shadow: 0 1px 0 color-mix(in oklab, var(--color-rule) 60%, transparent);
+  }
+
+  /* Notebook ruling, behind the agenda. Set to the row rhythm. */
+  .ruled {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 43px,
+      var(--paper-rule) 43px,
+      var(--paper-rule) 44px
+    );
+  }
+
+  /* The filing label: small, spaced, upper — used for group headers. */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  /* Display type, with Fraunces' softness dialled up a little. */
+  .display {
+    font-family: var(--font-display);
+    font-variation-settings: "SOFT" 30, "WONK" 1, "opsz" 32;
+    font-weight: 500;
+    letter-spacing: -0.011em;
+  }
+
+  /*
+    Evidence. The sentence copied out of the school's own notice, set like a
+    slip pasted onto the page — because the product's whole claim is that this
+    text was not written by the model.
+  */
+  .evidence {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    background: var(--color-sheet-sunk);
+    border-left: 2px solid var(--color-rule-strong);
+    color: var(--color-ink-soft);
+  }
+
+  /* Someone has put their initials on it. */
+  .stamp {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    border: 1px solid color-mix(in oklab, var(--color-ballpoint) 35%, transparent);
+    color: var(--color-ballpoint);
+    background: var(--stamp-tint);
+  }
+
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--color-ballpoint);
+    outline-offset: 2px;
+  }
+}
+
+/* A new line arriving on the board should be noticed, not animated at. */
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.settle {
+  animation: settle 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settle {
+    animation: none;
+  }
 }

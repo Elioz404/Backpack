@@ -8,11 +8,12 @@ import { agentmail } from "./lib/agentmail";
  * Static hosting owns `/` so the SPA is served from the deployment root; the
  * app-level `httpPrefix` in `convex.config.ts` puts everything declared here
  * under `/api`. The route below is therefore reachable at
- * `https://<deployment>.convex.site/api/agentmail/webhook`, which is the URL
- * to register with AgentMail.
+ * `https://<deployment>.convex.site/api/agentmail/webhook` — that, and not the
+ * unprefixed path, is the URL to register with AgentMail.
  *
- * Firecrawl's callback is not here: that component mounts its own route, at
- * `/api/firecrawl/webhook`.
+ * Firecrawl's callback is not here. That component mounts its own route, and
+ * component prefixes are *not* nested under the app's, so it answers at
+ * `/firecrawl/webhook` with no `/api`. The component registers it itself.
  */
 const http = httpRouter();
 

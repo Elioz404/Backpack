@@ -13,11 +13,18 @@ import presence from "@convex-dev/presence/convex.config";
 /**
  * Component wiring for Backpack.
  *
- * Static hosting owns the root so the SPA is served from `convex.site`; every
- * other HTTP surface (our webhooks, the auth routes, the Firecrawl callback)
- * is nested under `/api` by the app-level `httpPrefix`. Component prefixes are
- * relative to it, so the Firecrawl webhook lands on `/api/firecrawl/webhook`
- * and our own routes in `convex/http.ts` on `/api/...`.
+ * Static hosting owns the root so the SPA is served from `convex.site`.
+ *
+ * The app-level `httpPrefix` moves *our* routes — the ones declared in
+ * `convex/http.ts` — under `/api`. It does not apply to components: each one's
+ * own `httpPrefix` is rooted at the deployment root. Verified against the
+ * running deployment, because the two nest differently and guessing produces a
+ * webhook URL that 404s in production only:
+ *
+ *   /                            the SPA
+ *   /api/agentmail/webhook       convex/http.ts
+ *   /firecrawl/webhook           the Firecrawl component
+ *   /auth/.well-known/jwks.json  the Convex Auth component
  *
  * Secrets are declared once here and passed into the components that need
  * them, so no component reads a raw `process.env` and no key ever travels

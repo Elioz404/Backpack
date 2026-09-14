@@ -1,8 +1,8 @@
 import { Presence } from "@convex-dev/presence";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { components } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
-import { requireMembership } from "./model/households";
+import { requireUserId } from "./model/auth";
 
 /**
  * Who else is on this board right now.
@@ -10,23 +10,48 @@ import { requireMembership } from "./model/households";
  * The point of a shared board is that two parents are looking at the same
  * thing; presence is what makes that visible, so the second person knows the
  * first is already on it before they both do the same errand.
- *
- * The room is the household id, and joining one is gated on membership — a
- * room id is not a capability.
  */
 const presence = new Presence(components.presence);
 
+/**
+ * The argument names are fixed by `usePresence`, which is why the room arrives
+ * as a `roomId` string rather than an `Id<"households">`.
+ *
+ * The client's `userId` argument is accepted and then **ignored**: identity
+ * comes from the session, not from the caller, or anyone could appear on
+ * anyone's board as anyone. The room is likewise checked — a room id is not a
+ * capability.
+ */
 export const heartbeat = mutation({
   args: {
-    householdId: v.id("households"),
+    roomId: v.string(),
+    userId: v.string(),
     sessionId: v.string(),
     interval: v.number(),
   },
+  returns: v.object({ roomToken: v.string(), sessionToken: v.string() }),
   handler: async (ctx, args) => {
-    const { userId } = await requireMembership(ctx, args.householdId);
+    const userId = await requireUserId(ctx);
+
+    const householdId = ctx.db.normalizeId("households", args.roomId);
+    if (householdId === null) {
+      throw new ConvexError({ code: "NOT_FOUND", entity: "household" });
+    }
+
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_household", (q) =>
+        q.eq("userId", userId).eq("householdId", householdId),
+      )
+      .unique();
+
+    if (membership === null) {
+      throw new ConvexError({ code: "NOT_FOUND", entity: "household" });
+    }
+
     return await presence.heartbeat(
       ctx,
-      args.householdId,
+      householdId,
       userId,
       args.sessionId,
       args.interval,

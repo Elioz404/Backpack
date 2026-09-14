@@ -39,6 +39,7 @@ import type * as pipelines_recrawl from "../pipelines/recrawl.js";
 import type * as presence from "../presence.js";
 import type * as questions from "../questions.js";
 import type * as schools from "../schools.js";
+import type * as seed from "../seed.js";
 import type * as users from "../users.js";
 
 import type {
@@ -79,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   presence: typeof presence;
   questions: typeof questions;
   schools: typeof schools;
+  seed: typeof seed;
   users: typeof users;
 }>;
 
