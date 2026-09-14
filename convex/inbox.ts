@@ -1,28 +1,36 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, internalMutation, internalQuery } from "./_generated/server";
-import { AgentMailError, createInbox } from "./lib/agentmail";
+import { AgentMailError, createInbox, subAddress } from "./lib/agentmail";
 import { requireMembership } from "./model/households";
 
 /**
  * The household's address.
  *
- * One inbox per household, created on demand. Parents set their school mail to
- * forward here and stop reading it themselves; the board reads it instead.
+ * Every household gets one, and they all share a single AgentMail inbox: the
+ * address is a sub-address of it, `<inbox>+<householdId>@`, and the webhook
+ * reads the tag back off the envelope to decide whose mail it is.
  *
- * One inbox rather than one per child or per school, because AgentMail's free
- * tier allows three in total. Threads and labels already separate
- * conversations, so nothing is lost by it — and a single address is the one a
- * parent can actually remember to forward to.
+ * One inbox, not one per household, because inboxes are metered — the free
+ * tier allows three in total — and sub-addresses are not. It is also the
+ * better shape regardless of the meter: a household is a tenant, not a
+ * mailbox, and this way the deployment needs exactly one mailbox forever.
+ *
+ * Households created before this still own an inbox each, and still work:
+ * their address has no tag, and inbound routing falls back to the inbox id.
  */
 
-/** Read the inbox without creating one. */
+/**
+ * Fixed, so a race between two households asking at once cannot create two
+ * inboxes — AgentMail returns the existing one for a repeated client id.
+ */
+const SHARED_INBOX_CLIENT_ID = "backpack-shared-inbox";
+
 export const current = internalQuery({
   args: { householdId: v.id("households") },
   returns: v.union(
     v.null(),
     v.object({
-      inboxId: v.union(v.string(), v.null()),
       inboxAddress: v.union(v.string(), v.null()),
       name: v.string(),
     }),
@@ -31,26 +39,66 @@ export const current = internalQuery({
     const household = await ctx.db.get(args.householdId);
     if (household === null) return null;
     return {
-      inboxId: household.inboxId ?? null,
       inboxAddress: household.inboxAddress ?? null,
       name: household.name,
     };
   },
 });
 
-export const attachInbox = internalMutation({
+/** The deployment's one mailbox, if it has been created yet. */
+export const sharedMailbox = internalQuery({
+  args: {},
+  returns: v.union(
+    v.null(),
+    v.object({ inboxId: v.string(), address: v.string() }),
+  ),
+  handler: async (ctx) => {
+    const row = await ctx.db.query("mailbox").first();
+    return row === null
+      ? null
+      : { inboxId: row.inboxId, address: row.address };
+  },
+});
+
+/**
+ * Record the mailbox and hand this household its sub-address, in one
+ * transaction. Re-reads the mailbox first so that two households racing to
+ * create it settle on whichever row landed rather than overwriting it.
+ */
+export const attachAddress = internalMutation({
   args: {
     householdId: v.id("households"),
     inboxId: v.string(),
-    inboxAddress: v.string(),
+    address: v.string(),
   },
-  returns: v.null(),
+  returns: v.string(),
   handler: async (ctx, args) => {
+    let mailbox = await ctx.db.query("mailbox").first();
+    if (mailbox === null) {
+      const id = await ctx.db.insert("mailbox", {
+        inboxId: args.inboxId,
+        address: args.address,
+        createdAt: Date.now(),
+      });
+      mailbox = await ctx.db.get(id);
+    }
+    if (mailbox === null) {
+      throw new ConvexError({ code: "UPSTREAM", message: "Mailbox vanished" });
+    }
+
+    const household = await ctx.db.get(args.householdId);
+    if (household === null) {
+      throw new ConvexError({ code: "NOT_FOUND", entity: "household" });
+    }
+    // Another caller may have finished first.
+    if (household.inboxAddress !== undefined) return household.inboxAddress;
+
+    const address = subAddress(mailbox.address, args.householdId);
     await ctx.db.patch(args.householdId, {
-      inboxId: args.inboxId,
-      inboxAddress: args.inboxAddress,
+      inboxId: mailbox.inboxId,
+      inboxAddress: address,
     });
-    return null;
+    return address;
   },
 });
 
@@ -66,17 +114,16 @@ export const authorize = internalQuery({
 /**
  * Give this household an address, or return the one it already has.
  *
- * Doubly idempotent, because inboxes are metered and an orphaned one cannot be
- * reclaimed by the app: the household row is checked first, and the create
- * call carries the household id as AgentMail's `client_id`, so even a retry
- * that races past that check returns the same inbox instead of a second one.
+ * Idempotent at three levels, because an inbox is metered and an orphaned one
+ * cannot be reclaimed by the app: the household row is checked first, the
+ * mailbox is reused when it exists, and the create call carries a fixed
+ * client id so even a race returns the same inbox rather than a second.
  */
 export const ensure = action({
   args: { householdId: v.id("households") },
   returns: v.object({ address: v.string() }),
   handler: async (ctx, args): Promise<{ address: string }> => {
-    // Actions have no database, so the membership check is a query of its own
-    // rather than an inline read.
+    // Actions have no database, so the membership check is a query of its own.
     await ctx.runQuery(internal.inbox.authorize, {
       householdId: args.householdId,
     });
@@ -91,31 +138,39 @@ export const ensure = action({
       return { address: existing.inboxAddress };
     }
 
-    let inbox;
-    try {
-      inbox = await createInbox({
-        displayName: `${existing.name} — Backpack`,
-        clientId: args.householdId,
-      });
-    } catch (error) {
-      if (error instanceof AgentMailError) {
-        throw new ConvexError({
-          code: "UPSTREAM",
-          // AgentMail's own code, so the UI can tell "out of inboxes" from
-          // "bad key" instead of showing one shrug for both.
-          upstream: error.code ?? String(error.status),
-          message: error.message,
+    const mailbox = await ctx.runQuery(internal.inbox.sharedMailbox, {});
+
+    let inboxId = mailbox?.inboxId;
+    let inboxAddress = mailbox?.address;
+
+    if (inboxId === undefined || inboxAddress === undefined) {
+      try {
+        const created = await createInbox({
+          displayName: "Backpack",
+          clientId: SHARED_INBOX_CLIENT_ID,
         });
+        inboxId = created.inbox_id;
+        inboxAddress = created.email;
+      } catch (error) {
+        if (error instanceof AgentMailError) {
+          throw new ConvexError({
+            code: "UPSTREAM",
+            // AgentMail's own code and its `fix` sentence, so the reader is
+            // told what to do rather than guessing at the API key.
+            upstream: error.code ?? String(error.status),
+            message: error.message,
+          });
+        }
+        throw error;
       }
-      throw error;
     }
 
-    await ctx.runMutation(internal.inbox.attachInbox, {
+    const address = await ctx.runMutation(internal.inbox.attachAddress, {
       householdId: args.householdId,
-      inboxId: inbox.inbox_id,
-      inboxAddress: inbox.email,
+      inboxId,
+      address: inboxAddress,
     });
 
-    return { address: inbox.email };
+    return { address };
   },
 });

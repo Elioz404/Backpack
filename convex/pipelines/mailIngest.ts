@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction, internalMutation } from "../_generated/server";
+import { recipients, tagOf } from "../lib/agentmail";
 import { extractionPool } from "../lib/pools";
 import * as Activity from "../model/activity";
 import * as Sources from "../model/sources";
@@ -18,13 +19,14 @@ import * as Sources from "../model/sources";
  * pick up.
  */
 
-/** Narrow the component's untyped payload to the fields this pipeline uses. */
+/** Narrow AgentMail's untyped payload to the fields this pipeline uses. */
 function readMessage(raw: unknown): {
   inboxId: string;
   threadId: string;
   messageId: string;
   subject: string;
   from: string;
+  to: string[];
   text: string;
 } | null {
   if (typeof raw !== "object" || raw === null) return null;
@@ -42,6 +44,9 @@ function readMessage(raw: unknown): {
     inboxId,
     threadId,
     messageId,
+    // The envelope is what says which household this is for: the recipient
+    // carries the `+householdId` tag, and the inbox is shared between them.
+    to: recipients(message.to),
     subject: asString(message.subject),
     from: asString(message.from),
     // `text` is the plain-text body; `extracted_text` is what AgentMail
@@ -84,12 +89,40 @@ export const onMessageReceived = internalMutation({
     const message = readMessage(args.message);
     if (message === null || message.text.trim() === "") return null;
 
-    const household = await ctx.db
-      .query("households")
-      .withIndex("by_inbox", (q) => q.eq("inboxId", message.inboxId))
-      .unique();
+    // Route on the address it was actually sent to. This one lookup covers
+    // both shapes — a sub-addressed household stores `inbox+id@` and a
+    // household from before sub-addressing stores the bare `inbox@` — and it
+    // is an indexed read either way. Every recipient is tried, because a
+    // forwarded message often carries several and only one is ours.
+    let household = null;
+    for (const address of message.to) {
+      household = await ctx.db
+        .query("households")
+        .withIndex("by_inbox_address", (q) => q.eq("inboxAddress", address))
+        .first();
+      if (household !== null) break;
+    }
 
-    // Mail for an inbox this deployment does not own.
+    // A tag that names a real household but whose address we have not stored
+    // — an address rewritten in transit, say. Accepted only when that
+    // household actually claimed this inbox, so a guessed id cannot put mail
+    // on someone else's board.
+    if (household === null) {
+      for (const address of message.to) {
+        const tag = tagOf(address);
+        if (tag === undefined) continue;
+        const householdId = ctx.db.normalizeId("households", tag);
+        if (householdId === null) continue;
+        const candidate = await ctx.db.get(householdId);
+        if (candidate !== null && candidate.inboxId === message.inboxId) {
+          household = candidate;
+          break;
+        }
+      }
+    }
+
+    // Mail for an inbox this deployment does not own, or addressed to a
+    // household that does not exist.
     if (household === null) return null;
 
     await ctx.scheduler.runAfter(0, internal.pipelines.mailIngest.ingestMessage, {

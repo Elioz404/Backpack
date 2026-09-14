@@ -114,9 +114,8 @@ Around that:
   deduped by the component, then routed: a reply on a thread we opened closes
   the question that opened it, anything else becomes a new source. Outbound
   sends are enqueued from a mutation, so a question row and its message commit
-  together. One inbox per household, not per child or per school, because the
-  free tier allows three in total — threads and labels already separate
-  conversations, and one address is what a parent can remember to forward to.
+  together. Households share a single inbox and are told apart by sub-address,
+  so the free tier's three-inbox limit caps inboxes rather than tenants.
 - **Convex** is the whole backend: the board is one live query, the crawl
   progress another, and presence makes the second parent visible on the same
   board.
@@ -368,6 +367,44 @@ what the parent asked, committing to nothing — sent from the household address
 answered from the office, and the reply closed the question and was read onto
 the board as a source in its own right. Three model calls for the whole
 exchange: 0.21 cents.
+
+### 2026-09-14 — one inbox, any number of households
+
+The three-inbox free tier was the last hard wall: a household got an inbox of
+its own, so the fourth family could not have an address at all. It turned out
+not to be a wall.
+
+AgentMail delivers sub-addressed mail. A probe to `<inbox>+household7@` reached
+the inbox, fired the webhook and was ingested — which is not in their
+documentation either way, so it was worth finding out rather than assuming.
+
+Households now share one inbox and are told apart by the tag: each gets
+`<inbox>+<householdId>@`, and inbound mail is routed on the address it was
+addressed to. That single indexed lookup covers both shapes, because a
+household created before this stores the bare inbox address and matches the
+same way — nothing already live had to change.
+
+A guarded second path accepts a tag that names a real household whose address
+we have not stored, but only when that household actually claimed this inbox,
+so a guessed id cannot put mail on somebody else's board.
+
+Proven in production with two households on one inbox: a notice sent to the
+second household's sub-address produced one correctly typed obligation on its
+board and left the first household's seven untouched.
+
+It is also the better shape with or without the meter. A household is a tenant,
+not a mailbox, and the deployment now needs exactly one mailbox forever.
+
+### 2026-09-14 — the component defect, independently confirmed
+
+The `@agentmail/convex` problem diagnosed here on 2026-09-13 was found four
+days earlier by someone else:
+[agentmail-to/convex#6](https://github.com/agentmail-to/convex/pull/6), opened
+2026-09-10, states the same cause — "component functions do not inherit the
+app's environment variables, so `AGENTMAIL_API_KEY` ... must be declared and
+explicitly bound" — and fixes it by declaring typed component env. It is open
+and unmerged, so npm still ships the broken 0.1.0 and the REST client here
+stays.
 
 ### 2026-09-13 — state
 

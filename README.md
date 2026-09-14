@@ -109,16 +109,22 @@ npx convex run seed:demo '{"householdId":"<id>"}'
 
 ## Notes and limits
 
-- **AgentMail's free tier allows three inboxes in total**, so Backpack gives one
-  address per *household* rather than per child or per school. Threads and
-  labels already separate conversations, and one address is what a parent can
-  remember to forward to.
+- **Households share one AgentMail inbox.** Each gets a sub-address of it,
+  `<inbox>+<householdId>@`, and inbound mail is routed on the address it was
+  sent to. AgentMail delivers sub-addressed mail with the tag intact — verified
+  against the live API, since it is not in their documentation — so the free
+  tier's three-inbox limit caps inboxes, not tenants. It is the better shape
+  regardless of the meter: a household is a tenant, not a mailbox, and the
+  deployment needs exactly one mailbox forever.
 - **`@agentmail/convex@0.1.0` is not used**, deliberately. It reads its API key
   from `process.env` inside its own component isolate — where deployment
   variables are not visible — and declares no typed environment to pass one in,
   so every call fails with "AGENTMAIL_API_KEY is not set" while the key is
-  plainly set. AgentMail is reached over its REST API instead, with Svix
-  webhook verification implemented in Web Crypto.
+  plainly set. This is a known defect:
+  [agentmail-to/convex#6](https://github.com/agentmail-to/convex/pull/6) fixes
+  it the same way, and was open and unmerged at the time of writing, so npm
+  still ships the broken build. AgentMail is reached over its REST API instead,
+  with Svix webhook verification implemented in Web Crypto.
 - **The `openai` package is not used** either: it sets `url.username` while
   normalising a request, which the Convex runtime does not implement. The
   Responses API is called directly.

@@ -209,6 +209,56 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/**
+ * The sub-address that routes to one household.
+ *
+ * AgentMail delivers mail sent to `<local>+<tag>@<domain>` into the inbox
+ * `<local>@<domain>`, with the tag intact on the recipient header — verified
+ * against the live API, since it is not in the documentation. That is what
+ * lets one metered inbox serve any number of households: the tag is the
+ * household id, and the webhook reads it back off the envelope.
+ */
+export function subAddress(inboxAddress: string, tag: string): string {
+  const at = inboxAddress.lastIndexOf("@");
+  if (at <= 0) return inboxAddress;
+  return `${inboxAddress.slice(0, at)}+${tag}${inboxAddress.slice(at)}`;
+}
+
+/**
+ * The household tag carried by a recipient address, if it has one.
+ *
+ * Returns nothing for a bare address, which is how mail to a household
+ * created before sub-addressing still resolves by its own inbox.
+ */
+export function tagOf(address: string): string | undefined {
+  const at = address.lastIndexOf("@");
+  const local = at <= 0 ? address : address.slice(0, at);
+  const plus = local.indexOf("+");
+  if (plus < 0) return undefined;
+  const tag = local.slice(plus + 1).trim();
+  return tag === "" ? undefined : tag;
+}
+
+/**
+ * Every address a message was addressed to.
+ *
+ * AgentMail reports `to` as a string or a list, and a forwarded message can
+ * carry several recipients, so the caller looks through all of them for one
+ * that belongs to us rather than assuming the first.
+ */
+export function recipients(raw: unknown): string[] {
+  const values = Array.isArray(raw) ? raw : [raw];
+  const out: string[] = [];
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    // "Name <a@b.c>" and a bare "a@b.c" both appear.
+    const angled = value.match(/<([^>]+)>/);
+    const address = (angled === null ? value : angled[1]).trim().toLowerCase();
+    if (address.includes("@")) out.push(address);
+  }
+  return out;
+}
+
 export function webhookSecret(): string | undefined {
   const secret = env.AGENTMAIL_WEBHOOK_SECRET;
   return secret === "" ? undefined : secret;

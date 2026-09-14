@@ -89,13 +89,21 @@ export default defineSchema({
     createdBy: v.id("users"),
     /** IANA zone. School deadlines are local dates, so this is not optional. */
     timeZone: v.string(),
-    /** AgentMail inbox, created on demand the first time mail is needed. */
+    /**
+     * Where this household's mail arrives.
+     *
+     * `inboxId` is the AgentMail inbox, which households share: the address is
+     * a sub-address of it, `<inbox>+<householdId>@`, so one metered inbox
+     * serves any number of families. Households created before that carry
+     * an inbox of their own and are still routed by `by_inbox`.
+     */
     inboxId: v.optional(v.string()),
     inboxAddress: v.optional(v.string()),
   })
     .index("by_creator", ["createdBy"])
-    // Inbound mail arrives knowing only which inbox it was sent to.
-    .index("by_inbox", ["inboxId"]),
+    // Inbound mail is routed on the address it was sent to, which identifies
+    // the household whether or not that address carries a tag.
+    .index("by_inbox_address", ["inboxAddress"]),
 
   memberships: defineTable({
     householdId: v.id("households"),
@@ -239,6 +247,20 @@ export default defineSchema({
     .index("by_household", ["householdId"])
     .index("by_thread", ["threadId"])
     .index("by_obligation", ["obligationId"]),
+
+  /**
+   * The one AgentMail inbox this deployment owns.
+   *
+   * A single row. Households are sub-addresses of it rather than inboxes of
+   * their own, because inboxes are metered — the free tier allows three in
+   * total — while sub-addresses are not, and a household is not a mailbox in
+   * any case. It is created the first time a household asks for an address.
+   */
+  mailbox: defineTable({
+    inboxId: v.string(),
+    address: v.string(),
+    createdAt: v.number(),
+  }),
 
   /**
    * Webhook deliveries already handled, by AgentMail's event id.
