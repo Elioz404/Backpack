@@ -1,4 +1,4 @@
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -8,7 +8,7 @@ import { BoardRow, type BoardCard } from "./BoardRow";
 import { Facepile } from "./Facepile";
 import { Icon } from "./Icon";
 import { Rail } from "./Rail";
-import { Button } from "./ui";
+import { Button, Spinner } from "./ui";
 
 const BUCKET_ORDER: Bucket[] = ["overdue", "today", "week", "later", "undated"];
 
@@ -110,7 +110,7 @@ export function Board({
           {cards === undefined ? (
             <Skeleton />
           ) : total === 0 ? (
-            <EmptyBoard />
+            <EmptyBoard householdId={householdId} />
           ) : (
             <div className="mt-5">
               {BUCKET_ORDER.map((bucket) => {
@@ -175,7 +175,10 @@ export function Board({
  * The empty board is the instruction manual. A family arrives here with
  * nothing, and the two things that fill it are the two things to explain.
  */
-function EmptyBoard() {
+function EmptyBoard({ householdId }: { householdId: Id<"households"> }) {
+  const fill = useMutation(api.households.fillWithExample);
+  const [filling, setFilling] = useState(false);
+
   return (
     <div className="ruled mt-5 border-t border-rule py-10">
       <div className="max-w-md">
@@ -204,6 +207,29 @@ function EmptyBoard() {
             </p>
           </li>
         </ol>
+
+        <div className="mt-8 border-t border-rule pt-6">
+          <p className="text-[13.5px] leading-relaxed text-ink-soft">
+            Or put an invented family on it now, and press the buttons. It is
+            your board — nobody else sees it, and you can clear it by
+            dismissing the cards.
+          </p>
+          <Button
+            className="mt-3"
+            disabled={filling}
+            icon={filling ? <Spinner /> : <Icon name="quote" size={14} />}
+            onClick={async () => {
+              setFilling(true);
+              try {
+                await fill({ householdId });
+              } finally {
+                setFilling(false);
+              }
+            }}
+          >
+            {filling ? "Filling…" : "Fill it with an example"}
+          </Button>
+        </div>
       </div>
     </div>
   );

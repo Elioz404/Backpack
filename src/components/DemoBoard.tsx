@@ -154,8 +154,16 @@ export function DemoBoard() {
           )}
 
           <p className="mt-4 border-t border-rule pt-4 text-[12px] leading-relaxed text-ink-faint">
-            Nothing here can be changed — it is the same board everyone sees.
-            Sign up to get one of your own, with its own address.
+            This page is read-only — it is the same board everyone sees, so
+            nothing here can be pressed.{" "}
+            <a
+              href="/"
+              className="focus-ring font-medium text-ballpoint underline underline-offset-2"
+            >
+              Sign up
+            </a>{" "}
+            and you can put this same example on a board of your own in one
+            click, with its own address and every control live.
           </p>
         </aside>
       </div>

@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import * as Example from "./model/example";
 import { isValidTimeZone } from "./lib/time";
 import { requireUserId } from "./model/auth";
 import {
@@ -99,6 +100,26 @@ export const create = mutation({
     }
 
     return await createHousehold(ctx, { name, timeZone: args.timeZone, userId });
+  },
+});
+
+/**
+ * Fill this household with the worked example.
+ *
+ * A new board is empty, and the honest ways to fill it — crawl a school site,
+ * forward it some mail — take minutes and spend a quota. This puts a real,
+ * private board in front of someone within seconds of signing up, with their
+ * own address and every control live, which the public read-only example
+ * cannot do.
+ *
+ * Writes only into the caller's own household, so nothing is shared.
+ */
+export const fillWithExample = mutation({
+  args: { householdId: v.id("households") },
+  returns: v.object({ obligations: v.number(), children: v.number() }),
+  handler: async (ctx, args) => {
+    const { household } = await requireMembership(ctx, args.householdId);
+    return await Example.fill(ctx, household);
   },
 });
 

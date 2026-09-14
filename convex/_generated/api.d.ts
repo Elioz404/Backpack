@@ -32,6 +32,7 @@ import type * as model_activity from "../model/activity.js";
 import type * as model_auth from "../model/auth.js";
 import type * as model_budget from "../model/budget.js";
 import type * as model_crawls from "../model/crawls.js";
+import type * as model_example from "../model/example.js";
 import type * as model_households from "../model/households.js";
 import type * as model_obligations from "../model/obligations.js";
 import type * as model_sources from "../model/sources.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   "model/auth": typeof model_auth;
   "model/budget": typeof model_budget;
   "model/crawls": typeof model_crawls;
+  "model/example": typeof model_example;
   "model/households": typeof model_households;
   "model/obligations": typeof model_obligations;
   "model/sources": typeof model_sources;
