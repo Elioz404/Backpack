@@ -62,7 +62,7 @@ export function Board({
   return (
     <div className="min-h-full">
       <header className="sticky top-0 z-30 border-b border-rule bg-ground/92 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-5 py-3 sm:px-7">
+        <div className="mx-auto flex max-w-5xl items-center gap-4 px-5 py-3 sm:px-7 2xl:max-w-[80rem]">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="text-ballpoint">
               <Icon name="backpack" size={19} strokeWidth={1.4} />
@@ -96,7 +96,14 @@ export function Board({
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-5xl gap-8 px-5 py-7 sm:px-7 lg:grid-cols-[minmax(0,1fr)_272px] lg:gap-10">
+      {/*
+        Capped for reading, but not at one width forever. On a 1080p monitor a
+        64rem column leaves more than half the screen empty and the board
+        looks like a phone app someone stretched a window around; 80rem from
+        the 2xl breakpoint fills it without letting a row grow so wide that
+        the title and its date stop looking like the same line.
+      */}
+      <div className="mx-auto grid max-w-5xl gap-8 px-5 py-7 sm:px-7 lg:grid-cols-[minmax(0,1fr)_272px] lg:gap-10 2xl:max-w-[80rem] 2xl:grid-cols-[minmax(0,1fr)_300px]">
         <main className="min-w-0">
           <div className="flex items-baseline justify-between gap-4">
             <h1 className="display text-[22px]">On the board</h1>
