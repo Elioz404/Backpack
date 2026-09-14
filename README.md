@@ -42,8 +42,8 @@ Three things make it trustworthy enough to put on a shared board.
 
 ```
 convex/
-  convex.config.ts   seven component mounts, typed environment, no raw process.env
-  schema.ts          ten tables on one tenant boundary
+  convex.config.ts   nine component mounts, typed environment, no raw process.env
+  schema.ts          fourteen tables on one tenant boundary
   lib/               outward adapters — openai/ firecrawl agentmail limits pools
   model/             domain logic — households obligations sources crawls budget
   pipelines/         crawlIngest · mailIngest · extract · recrawl
@@ -64,6 +64,12 @@ household and metered against a hard ceiling — every call reports its token
 usage, and both entry points refuse before spending past `OPENAI_BUDGET_CENTS`.
 The running total is on screen, because a number you have to find in a
 dashboard is one you find too late.
+
+A per-household limit bounds one family and nothing else, though, and `/demo`
+hands a household to anyone who asks — so a loop over that URL would collect a
+fresh allowance every time. Two further buckets are therefore **unkeyed**, and
+bound the deployment: one on handing out a trial board, one on starting a crawl
+at all.
 
 ## Running it
 
@@ -93,8 +99,14 @@ Deploying — the frontend is served by Convex static hosting, so there is one
 command and no second host:
 
 ```bash
-npx @convex-dev/static-hosting deploy
+npm run deploy
 ```
+
+Use that rather than building and uploading by hand. `npm run build` bakes
+`VITE_CONVEX_URL` from `.env.local`, which is the *development* deployment, so
+a hand-built bundle uploaded to production serves a site whose client talks to
+dev. The script lets the static-hosting CLI run the build, which injects the
+right URL.
 
 Register `https://<deployment>.convex.site/api/agentmail/webhook` with AgentMail
 for inbound mail. Firecrawl's callback is mounted by its component and needs no
@@ -139,6 +151,13 @@ npx convex run seed:demo '{"householdId":"<id>"}'
   them. A read-only demo would show the output while hiding the point, which is
   two people moving the same list, and it would be a second lesser version of
   the app to keep working.
+- **A trial board can be kept.** An anonymous session lives in one browser and
+  has no credentials to return with, so signing up afterwards used to mint an
+  empty account and strand the work. Convex Auth has no account linking, so the
+  hand-off is a single-use ticket minted by the household's owner while the
+  trial session can still prove it owns the household, and redeemed by whoever
+  they sign up as. The household moves rather than being shared; it is refused
+  when the account already has one of its own.
 
 ## Licence
 

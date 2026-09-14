@@ -12,7 +12,7 @@
 - **Auth:** Convex Auth
 - **AI models:** gpt-5.6-luna (OpenAI Responses API, strict JSON schema), configurable through `OPENAI_MODEL`
 - **Started:** 2026-09-14T01:00:45Z
-- **Last updated:** 2026-09-14T18:27:39Z
+- **Last updated:** 2026-09-14T22:27:07Z
 
 ## Log
 
@@ -563,6 +563,23 @@ separates in flight from stuck, reports the first quietly and without a button,
 and offers the retry only for rows that have failed or have sat pending past
 five minutes. `skipped` is not counted at all: a page with nothing on it worth
 doing was read correctly (`convex/sources.ts`, `src/components/Rail.tsx`).
+
+### 2026-09-14 - b52fd4c — the first screen, saying what it is
+
+A new board arrives with sample cards so it is not empty, and for the first few
+seconds that is all a visitor sees. Every one of them carried the label "Parent
+newsletter — an example, not a real school", which the row truncated to "an
+example, not a r…" — a disclaimer repeated nine times and cut off mid-word. The
+honest thing was being said in the way most likely to make the whole app read
+as a mock-up of itself.
+
+The label is "(sample)" now, and above the board, while nothing real has been
+read yet, one line says so and carries the button that fixes it — so the
+interesting part is one press away rather than something to find in the rail.
+Sources are marked `seeded`, so the board can tell a sample-only household from
+one that has read something, and the line removes itself the moment it has
+(`convex/model/example.ts`, `convex/schema.ts`, `convex/sources.ts`,
+`src/components/Board.tsx`).
 
 ### 2026-09-14 — state
 
