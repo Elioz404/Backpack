@@ -204,14 +204,21 @@ export async function fill(
       // cannot resolve, meant the first thing anyone tried failed: the crawl
       // against nothing, and the question composed by the model and then
       // bounced.
+      //
+      // The families section, not a deep page: Firecrawl refuses to leave the
+      // path a crawl starts at, and refuses by failing the whole run rather
+      // than skipping the link — so a deep URL dies on its first link back to
+      // "/", which every page has. A section root is the shape that survives.
       name: "Boston Public Schools — families",
       siteUrl: "https://www.bostonpublicschools.org/students-families",
       officeEmail: EXAMPLE_OFFICE_ADDRESS,
-      // Eight, not fifteen. Every page is one OpenAI request against a daily
-      // cap of fifty, and this is the button a first-time visitor presses —
-      // it should finish while they are still watching, and leave the day's
-      // allowance for the person after them.
-      crawlLimit: 8,
+      // Twelve, not fifteen. Every page is one OpenAI request against a
+      // daily cap of fifty, and this is the button a first-time visitor
+      // presses — it should finish while they are still watching, and leave
+      // the day's allowance for the person after them. Twelve rather than
+      // eight because a section root spends its first few pages on
+      // navigation before it reaches anything with a date on it.
+      crawlLimit: 12,
     });
   }
 
