@@ -14,7 +14,7 @@ import { openBoard } from "./model/obligations";
  * it without anything asking again.
  */
 
-const vBoardCard = v.object({
+export const vBoardCard = v.object({
   _id: v.id("obligations"),
   title: v.string(),
   detail: v.union(v.string(), v.null()),

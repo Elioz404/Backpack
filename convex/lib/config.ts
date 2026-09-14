@@ -97,8 +97,17 @@ export const QUESTION_RATE_LIMIT = {
   capacity: 5,
 } as const;
 
-/** Default crawl breadth for a newly added school; editable per school. */
-export const DEFAULT_CRAWL_LIMIT = 40;
+/**
+ * Default crawl breadth for a newly added school; editable per school.
+ *
+ * Fifteen, not forty. Each page is one OpenAI request, and a new account's cap
+ * is fifty requests a *day* — so a forty-page default means the first person to
+ * try it takes the day's allowance for everyone. Fifteen finishes in about
+ * ninety seconds instead of four minutes, leaves room for three runs a day, and
+ * on the school sites tested still reaches the calendar and the newsletters,
+ * which is where anything a family owes actually lives.
+ */
+export const DEFAULT_CRAWL_LIMIT = 15;
 
 /**
  * When a dated obligation has no time of day, it is due at the end of the

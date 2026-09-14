@@ -73,6 +73,19 @@ export function AuthScreen() {
             has to do — and both parents watch the same list change.
           </p>
 
+          <p className="mt-6">
+            <a
+              href="/demo"
+              className="focus-ring inline-flex items-center gap-1.5 text-[14.5px] font-medium text-ballpoint underline underline-offset-2"
+            >
+              See an example board
+              <Icon name="chevron" size={13} />
+            </a>
+            <span className="ml-2 text-[13.5px] text-ink-faint">
+              no account needed
+            </span>
+          </p>
+
           <ul className="mt-9 grid gap-0 border-t border-rule">
             {[
               {

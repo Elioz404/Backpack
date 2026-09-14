@@ -7,6 +7,7 @@ import {
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { AuthScreen } from "./components/AuthScreen";
+import { DemoBoard } from "./components/DemoBoard";
 import { Board } from "./components/Board";
 import { Icon } from "./components/Icon";
 import { Onboarding } from "./components/Onboarding";
@@ -17,6 +18,12 @@ import { Onboarding } from "./components/Onboarding";
  * then the board, which is the whole product.
  */
 export function App() {
+  // One path, read once. The example board is public by design, so it is
+  // answered before the auth gate rather than behind it.
+  if (window.location.pathname.replace(/\/+$/, "") === "/demo") {
+    return <DemoBoard />;
+  }
+
   return (
     <>
       <AuthLoading>

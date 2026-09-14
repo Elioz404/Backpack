@@ -44,6 +44,8 @@ const app = defineApp({
     OPENAI_MODEL: v.optional(v.string()),
     OPENAI_BASE_URL: v.optional(v.string()),
     OPENAI_BUDGET_CENTS: v.optional(v.string()),
+    // Names the one household whose board anyone may read. See convex/demo.ts.
+    DEMO_HOUSEHOLD_ID: v.optional(v.string()),
   },
 });
 

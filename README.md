@@ -2,7 +2,7 @@
 
 **One live board of everything the school year asks of your family — with the sentence from the school's own notice that says so.**
 
-🔗 **[resilient-mastiff-559.convex.site](https://resilient-mastiff-559.convex.site)** · built for the [Convex All Gas Hackathon](https://convex.dev/hackathons/all-gas)
+🔗 **[resilient-mastiff-559.convex.site](https://resilient-mastiff-559.convex.site)** · **[see an example board](https://resilient-mastiff-559.convex.site/demo)** (no account needed) · built for the [Convex All Gas Hackathon](https://convex.dev/hackathons/all-gas)
 
 ---
 
@@ -122,8 +122,14 @@ npx convex run seed:demo '{"householdId":"<id>"}'
 - **The `openai` package is not used** either: it sets `url.username` while
   normalising a request, which the Convex runtime does not implement. The
   Responses API is called directly.
-- Extraction defaults to `gpt-5.6-luna`. A 40-page crawl costs about three
-  cents; set `OPENAI_MODEL` higher if the reading quality needs it.
+- Extraction defaults to `gpt-5.6-luna` and to fifteen pages a crawl. Each page
+  is one request, and a new OpenAI account is capped at fifty requests a *day*
+  long before it runs out of money — a fifteen-page crawl costs about one cent
+  and leaves room to run it again. Raise `crawlLimit` per school, or
+  `OPENAI_MODEL`, once the account's tier allows it.
+- `DEMO_HOUSEHOLD_ID` names one household whose board is readable at `/demo`
+  without an account. It is read-only, serves that id and no other, and
+  redacts the sender address on email sources, which are working inboxes.
 
 ## Licence
 

@@ -50,6 +50,7 @@ export function BoardRow({
   now,
   currentUserId,
   onAsk,
+  readOnly = false,
 }: {
   card: BoardCard;
   householdId: Id<"households">;
@@ -57,6 +58,8 @@ export function BoardRow({
   now: number;
   currentUserId: Id<"users"> | null;
   onAsk: (card: BoardCard) => void;
+  /** The public example board shows the same rows with nothing to press. */
+  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -225,6 +228,7 @@ export function BoardRow({
         </div>
 
         <div
+          hidden={readOnly}
           className={[
             "flex items-center gap-0.5",
             // Quiet until the row is under the pointer, but never hidden from

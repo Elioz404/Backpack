@@ -5,6 +5,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { formatClock } from "../lib/format";
 import { childColor } from "../lib/kinds";
 import { Icon } from "./Icon";
+import { explainError } from "../lib/errors";
 import { Button, Chip, Input, RuledHeading, Spinner } from "./ui";
 
 /**
@@ -51,8 +52,11 @@ function InboxCard({
     setError(null);
     try {
       await ensure({ householdId });
-    } catch {
-      setError("Could not reach AgentMail. Check the deployment key.");
+    } catch (caught) {
+      // The server already knows why — AgentMail's own message says "your
+      // plan's inbox limit is 3", which is actionable. Replacing it with a
+      // guess about the API key sends the reader to the wrong place.
+      setError(explainError(caught, "Could not get an address."));
     } finally {
       setBusy(false);
     }
@@ -207,8 +211,8 @@ function SchoolsCard({ householdId }: { householdId: Id<"households"> }) {
       setName("");
       setUrl("");
       setOfficeEmail("");
-    } catch {
-      setError("That did not look like a web address.");
+    } catch (caught) {
+      setError(explainError(caught, "That did not look like a web address."));
     } finally {
       setBusy(false);
     }
@@ -219,8 +223,8 @@ function SchoolsCard({ householdId }: { householdId: Id<"households"> }) {
     setError(null);
     try {
       await start({ householdId, schoolId });
-    } catch {
-      setError("Could not start reading. Check the Firecrawl key.");
+    } catch (caught) {
+      setError(explainError(caught, "Could not start reading the site."));
     } finally {
       setBusy(false);
     }

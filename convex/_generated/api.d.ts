@@ -14,6 +14,7 @@ import type * as budget from "../budget.js";
 import type * as children from "../children.js";
 import type * as crawls from "../crawls.js";
 import type * as crons from "../crons.js";
+import type * as demo from "../demo.js";
 import type * as households from "../households.js";
 import type * as http from "../http.js";
 import type * as inbox from "../inbox.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   children: typeof children;
   crawls: typeof crawls;
   crons: typeof crons;
+  demo: typeof demo;
   households: typeof households;
   http: typeof http;
   inbox: typeof inbox;

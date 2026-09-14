@@ -64,11 +64,19 @@ async function request<T>(
   const payload: unknown = text === "" ? {} : JSON.parse(text);
 
   if (!response.ok) {
-    const detail = payload as { code?: string; message?: string };
+    const detail = payload as { code?: string; message?: string; fix?: string };
+    // AgentMail's `fix` is the sentence worth showing — "your plan's inbox
+    // limit is 3, delete one or upgrade" tells the reader what to do, where
+    // `message` only says what went wrong.
+    const explanation = [detail.message, detail.fix]
+      .filter((part): part is string => typeof part === "string" && part !== "")
+      .join(" ");
     throw new AgentMailError(
       response.status,
       detail.code,
-      detail.message ?? `AgentMail returned ${response.status}`,
+      explanation === ""
+        ? `AgentMail returned ${response.status}`
+        : explanation,
     );
   }
   return payload as T;
