@@ -254,6 +254,22 @@ export default defineSchema({
     receivedAt: v.number(),
   }).index("by_event_id", ["eventId"]),
 
+  /**
+   * What this deployment has spent at OpenAI, as one running total.
+   *
+   * The operator pays for every extraction on their own key and the pipeline
+   * runs unattended on a cron, so the spend is metered against a ceiling and
+   * refused past it. Accounted in micro-cents as integers, because repeatedly
+   * adding fractions of a cent as floats drifts.
+   */
+  apiSpend: defineTable({
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    microCents: v.number(),
+    calls: v.number(),
+    since: v.number(),
+  }),
+
   /** Household-visible history. Also what makes the board feel alive. */
   activity: defineTable({
     householdId: v.id("households"),

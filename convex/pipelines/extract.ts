@@ -12,6 +12,7 @@ import {
 } from "../lib/openai/extraction";
 import { todayInZone } from "../lib/time";
 import * as Activity from "../model/activity";
+import * as Budget from "../model/budget";
 import { childrenOf, schoolsOf } from "../model/households";
 import * as Obligations from "../model/obligations";
 import * as Sources from "../model/sources";
@@ -84,6 +85,29 @@ export const applyExtraction = internalMutation({
   },
 });
 
+/** Refuse before spending, not after. */
+export const mayExtract = internalQuery({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => await Budget.maySpend(ctx),
+});
+
+export const recordSpend = internalMutation({
+  args: {
+    model: v.string(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await Budget.record(ctx, args.model, {
+      inputTokens: args.inputTokens,
+      outputTokens: args.outputTokens,
+    });
+    return null;
+  },
+});
+
 export const failExtraction = internalMutation({
   args: { sourceId: v.id("sources"), error: v.string() },
   returns: v.null(),
@@ -109,6 +133,18 @@ export const extractSource = internalAction({
     });
     if (context === null) return null;
 
+    if (!(await ctx.runQuery(internal.pipelines.extract.mayExtract, {}))) {
+      await ctx.runMutation(internal.pipelines.extract.failExtraction, {
+        sourceId: args.sourceId,
+        error:
+          "This deployment has reached its OpenAI budget. Raise " +
+          "OPENAI_BUDGET_CENTS to read more pages.",
+      });
+      // Not rethrown: the pool retrying a budget refusal would just spend the
+      // retry slots. The page stays unread and the board says so.
+      return null;
+    }
+
     try {
       const result = await extractObligations({
         sourceKind: context.source.kind,
@@ -119,6 +155,12 @@ export const extractSource = internalAction({
         schoolNames: context.schoolNames,
         today: todayInZone(context.timeZone, Date.now()),
         timeZone: context.timeZone,
+      });
+
+      await ctx.runMutation(internal.pipelines.extract.recordSpend, {
+        model: result.model,
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
       });
 
       await ctx.runMutation(internal.pipelines.extract.applyExtraction, {

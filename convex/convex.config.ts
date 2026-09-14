@@ -43,6 +43,7 @@ const app = defineApp({
     OPENAI_API_KEY: v.string(),
     OPENAI_MODEL: v.optional(v.string()),
     OPENAI_BASE_URL: v.optional(v.string()),
+    OPENAI_BUDGET_CENTS: v.optional(v.string()),
   },
 });
 

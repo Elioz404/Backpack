@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as board from "../board.js";
+import type * as budget from "../budget.js";
 import type * as children from "../children.js";
 import type * as crawls from "../crawls.js";
 import type * as crons from "../crons.js";
@@ -28,6 +29,7 @@ import type * as lib_text from "../lib/text.js";
 import type * as lib_time from "../lib/time.js";
 import type * as model_activity from "../model/activity.js";
 import type * as model_auth from "../model/auth.js";
+import type * as model_budget from "../model/budget.js";
 import type * as model_crawls from "../model/crawls.js";
 import type * as model_households from "../model/households.js";
 import type * as model_obligations from "../model/obligations.js";
@@ -52,6 +54,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   board: typeof board;
+  budget: typeof budget;
   children: typeof children;
   crawls: typeof crawls;
   crons: typeof crons;
@@ -70,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   "lib/time": typeof lib_time;
   "model/activity": typeof model_activity;
   "model/auth": typeof model_auth;
+  "model/budget": typeof model_budget;
   "model/crawls": typeof model_crawls;
   "model/households": typeof model_households;
   "model/obligations": typeof model_obligations;

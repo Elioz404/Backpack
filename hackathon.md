@@ -10,7 +10,7 @@
 - **Components:** @convex-dev/static-hosting, @convex-dev/auth (core, username, password provider), @firecrawl/firecrawl-convex, @convex-dev/workpool, @convex-dev/rate-limiter, @convex-dev/presence
 - **Convex features:** schema with indexes, reactive queries, mutations, actions, internal functions, HTTP actions, typed component environment, the scheduler, pagination, cron jobs, static hosting
 - **Auth:** Convex Auth
-- **AI models:** gpt-5.6-terra (OpenAI Responses API, strict JSON schema), configurable through `OPENAI_MODEL`
+- **AI models:** gpt-5.6-luna (OpenAI Responses API, strict JSON schema), configurable through `OPENAI_MODEL`
 - **Started:** 2026-09-13
 - **Last updated:** 2026-09-13
 
@@ -214,6 +214,48 @@ The schema push validated every existing row against the narrower union, which
 is the proof no row was left behind. `sources.retryUnread` re-queues them
 without re-crawling, because the pages are already stored.
 
+### 2026-09-13 — making it affordable on a $5 budget
+
+The operator has five dollars of OpenAI credit, which is a real design
+constraint and not a footnote: one crawl of a large district site fans out to
+forty model calls, and a weekly cron repeats it.
+
+Measured first. Over the 40 pages already crawled from
+bostonpublicschools.org, the input at the old settings came to 810,000
+characters — about 200k tokens, roughly **$0.57 a crawl** at `gpt-5.6-terra`.
+Eight crawls would have emptied the budget.
+
+The obvious idea did not survive contact. A cheap prefilter — skip any page
+with no date, no amount and no phrase asking something of a reader — was
+written and dry-run over those same 40 stored pages, costing nothing. It
+skipped **zero** of them, and so did every variant tried, including one
+requiring an explicit request. The reason is structural: a school site repeats
+its navigation on every page, so every page contains "no school", a weekday and
+a date no matter what it is about. A better regex cannot fix that, and the
+filter was deleted rather than kept as reassurance that does nothing.
+
+What the measurement did show is where the money actually goes:
+
+- **Clamping the model's view to 8,000 characters** cuts the same crawl from
+  810,000 characters to 321,000 — 60%, for free. School sites put the notice
+  near the top and the rest is chrome already paid for on the page before.
+- **`gpt-5.6-luna` costs a tenth of `gpt-5.6-terra`** ($0.20 vs $2.00 per
+  million input tokens) and is the right shape of model for this work: the
+  strict schema does the structuring and the verbatim-quote check catches what
+  it does not, so the judgement a larger model buys is mostly wasted.
+
+Together those take a 40-page crawl from about **$0.57 to about $0.03** — from
+eight crawls on the budget to well over a hundred.
+
+And because the pipeline runs unattended, a hard ceiling was added rather than
+a warning. Every model call reports its token usage; `apiSpend` accumulates it
+in integer micro-cents against a price table, and both entry points refuse
+before spending once `OPENAI_BUDGET_CENTS` is reached. A budget refusal is not
+rethrown into the pool's retry, because retrying a refusal only burns the retry
+slots — the page stays unread and the board says so. The spend is on screen in
+the app, because a number you have to find in a dashboard is one you find too
+late.
+
 ### 2026-09-13 — state
 
 Live on the development deployment at https://secret-minnow-38.convex.site,
@@ -227,6 +269,6 @@ creation.
 returns `credit_balance_exhausted`, so the 40 crawled pages are stored and
 queued but unread, and the board still shows only the seeded worked example —
 openly fictional, and labelled as such in `convex/seed.ts`. The moment credit
-is added, "Try reading again" reads all 40 without spending another Firecrawl
-credit. Outbound mail is likewise written but unsent, because drafting the
-question is an OpenAI call.
+is added, "Try reading again" reads all 40 for roughly three cents, without
+spending another Firecrawl credit. Outbound mail is likewise written but
+unsent, because drafting the question is an OpenAI call.

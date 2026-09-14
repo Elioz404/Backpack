@@ -33,12 +33,14 @@ export class OpenAiError extends Error {
  * `strict` is on, so the model cannot answer with a shape the schema does not
  * describe, and there is no prose to salvage a value out of.
  */
+export type Usage = { inputTokens: number; outputTokens: number };
+
 export async function respondJson(request: {
   system: string;
   user: string;
   schemaName: string;
   schema: Record<string, unknown>;
-}): Promise<unknown> {
+}): Promise<{ value: unknown; usage: Usage }> {
   const config = openAiConfig();
 
   if (config.apiKey.startsWith("PLACEHOLDER")) {
@@ -77,7 +79,26 @@ export async function respondJson(request: {
   );
 
   const payload: unknown = await response.json();
-  return JSON.parse(outputText(payload));
+  return {
+    value: JSON.parse(outputText(payload)),
+    usage: readUsage(payload),
+  };
+}
+
+/**
+ * Token counts as the API reports them.
+ *
+ * Missing counts are reported as zero rather than estimated: a guess folded
+ * into a running total that gates spending is worse than a known undercount
+ * the operator can see is wrong.
+ */
+function readUsage(payload: unknown): Usage {
+  const usage = (payload as { usage?: { input_tokens?: number; output_tokens?: number } })
+    .usage;
+  return {
+    inputTokens: typeof usage?.input_tokens === "number" ? usage.input_tokens : 0,
+    outputTokens: typeof usage?.output_tokens === "number" ? usage.output_tokens : 0,
+  };
 }
 
 /**

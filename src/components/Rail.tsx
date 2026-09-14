@@ -28,6 +28,7 @@ export function Rail({
       <ChildrenCard householdId={householdId} />
       <SchoolsCard householdId={householdId} />
       <UnreadCard householdId={householdId} />
+      <SpendCard />
       <ActivityLog householdId={householdId} />
     </aside>
   );
@@ -384,6 +385,50 @@ function UnreadCard({ householdId }: { householdId: Id<"households"> }) {
       >
         {busy ? "Queueing…" : "Try reading again"}
       </Button>
+    </section>
+  );
+}
+
+/**
+ * What reading the mail has cost.
+ *
+ * Backpack runs on the operator's own OpenAI key and re-reads every school
+ * site weekly, so the bill accrues whether or not anyone is watching. Shown
+ * once anything has been spent, because a number you have to go to a dashboard
+ * to find is a number you find too late.
+ */
+function SpendCard() {
+  const spend = useQuery(api.budget.current);
+  if (spend === undefined || spend.calls === 0) return null;
+
+  const used = Math.min(1, spend.spentCents / spend.budgetCents);
+  const money = (cents: number) =>
+    cents < 1 ? `${cents.toFixed(2)}¢` : `$${(cents / 100).toFixed(2)}`;
+
+  return (
+    <section className="grid gap-2">
+      <RuledHeading trailing={`${spend.calls} calls`}>Model spend</RuledHeading>
+      <div className="flex items-baseline justify-between font-mono text-[11.5px] text-ink-soft">
+        <span className="tabular-nums">{money(spend.spentCents)}</span>
+        <span className="text-ink-faint tabular-nums">
+          of {money(spend.budgetCents)}
+        </span>
+      </div>
+      <div className="h-px w-full bg-rule">
+        <div
+          className={[
+            "h-px transition-[width] duration-500",
+            spend.exhausted ? "bg-overdue" : "bg-ballpoint",
+          ].join(" ")}
+          style={{ width: `${Math.round(used * 100)}%` }}
+        />
+      </div>
+      {spend.exhausted ? (
+        <p className="text-[12px] leading-relaxed text-overdue">
+          Budget reached. Nothing more will be read until{" "}
+          <code className="font-mono">OPENAI_BUDGET_CENTS</code> is raised.
+        </p>
+      ) : null}
     </section>
   );
 }

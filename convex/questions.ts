@@ -9,8 +9,10 @@ import {
 } from "./_generated/server";
 import { AgentMailError, sendMessage } from "./lib/agentmail";
 import { rateLimiter } from "./lib/limits";
+import { openAiConfig } from "./lib/config";
 import { composeQuestion } from "./lib/openai/compose";
 import * as Activity from "./model/activity";
+import * as Budget from "./model/budget";
 import { requireMembership } from "./model/households";
 import { vQuestionStatus } from "./schema";
 
@@ -162,6 +164,24 @@ export const record = internalMutation({
   },
 });
 
+export const mayAsk = internalQuery({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => await Budget.maySpend(ctx),
+});
+
+export const recordSpend = internalMutation({
+  args: { inputTokens: v.number(), outputTokens: v.number() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await Budget.record(ctx, openAiConfig().model, {
+      inputTokens: args.inputTokens,
+      outputTokens: args.outputTokens,
+    });
+    return null;
+  },
+});
+
 export const markSent = internalMutation({
   args: {
     questionId: v.id("questions"),
@@ -243,11 +263,25 @@ export const ask = action({
       });
     }
 
+    if (!(await ctx.runQuery(internal.questions.mayAsk, {}))) {
+      throw new ConvexError({
+        code: "BUDGET_REACHED",
+        message:
+          "This deployment has reached its OpenAI budget, so it cannot write " +
+          "the message.",
+      });
+    }
+
     const draft = await composeQuestion({
       householdName: prepared.householdName,
       askedBy: prepared.askedBy,
       question,
       context: prepared.context ?? undefined,
+    });
+
+    await ctx.runMutation(internal.questions.recordSpend, {
+      inputTokens: draft.usage.inputTokens,
+      outputTokens: draft.usage.outputTokens,
     });
 
     const questionId = await ctx.runMutation(internal.questions.record, {

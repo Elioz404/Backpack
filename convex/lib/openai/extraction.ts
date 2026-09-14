@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { openAiConfig } from "../config";
 import { vObligationKind } from "../../schema";
 import { clampForModel, normaliseText } from "../text";
-import { respondJson } from "./client";
+import { respondJson, type Usage } from "./client";
 
 /**
  * Reading one page or one message and reporting what it asks of the family.
@@ -76,6 +76,7 @@ export type ExtractionResult = {
   /** Items the model returned whose quote was not found in the source. */
   rejected: number;
   model: string;
+  usage: Usage;
 };
 
 const RESPONSE_SCHEMA = {
@@ -230,7 +231,7 @@ export async function extractObligations(
 ): Promise<ExtractionResult> {
   const text = clampForModel(normaliseText(input.text));
 
-  const payload = await respondJson({
+  const { value: payload, usage } = await respondJson({
     system: systemPrompt({ ...input, text }),
     user: userPrompt({ ...input, text }),
     schemaName: "school_obligations",
@@ -293,5 +294,5 @@ export async function extractObligations(
     });
   }
 
-  return { items, rejected, model: openAiConfig().model };
+  return { items, rejected, model: openAiConfig().model, usage };
 }

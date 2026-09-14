@@ -1,4 +1,4 @@
-import { respondJson } from "./client";
+import { respondJson, type Usage } from "./client";
 
 /**
  * Writing to the school office.
@@ -23,7 +23,11 @@ export type ComposeInput = {
     | undefined;
 };
 
-export type ComposedEmail = { subject: string; body: string };
+export type ComposedEmail = {
+  subject: string;
+  body: string;
+  usage: Usage;
+};
 
 const RESPONSE_SCHEMA = {
   type: "object",
@@ -67,7 +71,7 @@ export async function composeQuestion(
           `The notice said, verbatim: "${input.context.quote}"`,
         ].join("\n");
 
-  const payload = await respondJson({
+  const { value: payload, usage } = await respondJson({
     system: SYSTEM_PROMPT,
     user: [
       `The parent is ${input.askedBy}, of the ${input.householdName} household.`,
@@ -87,5 +91,5 @@ export async function composeQuestion(
   if (typeof subject !== "string" || typeof body !== "string") {
     throw new Error("Model returned an email without a subject or body");
   }
-  return { subject: subject.trim(), body: body.trim() };
+  return { subject: subject.trim(), body: body.trim(), usage };
 }

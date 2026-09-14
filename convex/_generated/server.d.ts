@@ -38,6 +38,7 @@ type Env = {
   readonly FIRECRAWL_WEBHOOK_SECRET: string | undefined;
   readonly OPENAI_API_KEY: string;
   readonly OPENAI_BASE_URL: string | undefined;
+  readonly OPENAI_BUDGET_CENTS: string | undefined;
   readonly OPENAI_MODEL: string | undefined;
 };
 

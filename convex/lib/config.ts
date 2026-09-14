@@ -7,23 +7,67 @@ import { env } from "../_generated/server";
  */
 
 /**
- * Balances capability against cost, which matters here because a single crawl
- * can fan out to a hundred extractions on the operator's own API key.
- * Override with `OPENAI_MODEL` to trade cost for judgement (`gpt-5.6-sol`,
- * `gpt-6-astra`) or the other way (`gpt-5.6-luna`).
+ * The cheap model, on purpose.
+ *
+ * Extraction is high-volume and narrow: read one page, answer a strict JSON
+ * schema, quote the source. The schema does most of the work and the verbatim
+ * check catches what it does not, so the judgement a larger model buys is
+ * mostly wasted here — and a single 40-page crawl at `gpt-5.6-terra` costs
+ * about twenty times what it costs at `gpt-5.6-luna`.
+ *
+ * Override with `OPENAI_MODEL` to trade cost for judgement (`gpt-5.6-terra`,
+ * `gpt-5.6-sol`, `gpt-6-astra`) once the bill is somebody else's problem.
  */
-const DEFAULT_OPENAI_MODEL = "gpt-5.6-terra";
+const DEFAULT_OPENAI_MODEL = "gpt-5.6-luna";
+
+/**
+ * What each model costs, in micro-cents per token, so the spend guard can
+ * account in integers. Input first, output second.
+ *
+ * Update alongside OpenAI's pricing page — an unknown model is charged at the
+ * most expensive rate here rather than at zero, so a typo in `OPENAI_MODEL`
+ * cannot silently disable the budget.
+ */
+const PRICES: Record<string, { input: number; output: number }> = {
+  // $0.20 / $1.20 per million tokens.
+  "gpt-5.6-luna": { input: 20, output: 120 },
+  // $2.00 / $12.00
+  "gpt-5.6-terra": { input: 200, output: 1_200 },
+  // $4.00 / $20.00
+  "gpt-5.6-sol": { input: 400, output: 2_000 },
+  // $10.00 / $50.00
+  "gpt-6-astra": { input: 1_000, output: 5_000 },
+};
+
+export function priceOf(model: string): { input: number; output: number } {
+  return (
+    PRICES[model] ?? { input: 1_000, output: 5_000 }
+  );
+}
+
+/**
+ * The ceiling, in whole cents, on what this deployment may spend at OpenAI.
+ *
+ * A hard stop rather than an alert: the operator is paying, the pipeline runs
+ * unattended on a cron, and a runaway crawl should fail loudly long before it
+ * empties an account. Raise it with `OPENAI_BUDGET_CENTS`.
+ */
+const DEFAULT_BUDGET_CENTS = 400;
 
 /** Model calls are bounded so one pathological page cannot stall a crawl. */
 const OPENAI_TIMEOUT_MS = 90_000;
 const OPENAI_MAX_RETRIES = 2;
 
 /**
- * How much of a page or message the model is shown. School pages are mostly
- * navigation; the informative part is at the top. Well under the model's
- * context window, and it keeps the per-page cost predictable.
+ * How much of a page or message the model is shown.
+ *
+ * Measured rather than guessed: over a real 40-page crawl of a school district
+ * site, 24,000 characters sent 810,000 characters to the model and 8,000 sent
+ * 321,000 — a 60% cut. School sites repeat their navigation on every page and
+ * put the notice near the top, so the tail is mostly chrome that has already
+ * been paid for on the page before.
  */
-export const MAX_SOURCE_CHARS = 24_000;
+export const MAX_SOURCE_CHARS = 8_000;
 
 /** Concurrency for the extraction pool: OpenAI calls in flight at once. */
 export const EXTRACTION_CONCURRENCY = 4;
@@ -53,6 +97,12 @@ export const DEFAULT_CRAWL_LIMIT = 40;
  * school day in the household's own zone rather than at midnight UTC.
  */
 export const ALL_DAY_DUE_HOUR = 15;
+
+export const budgetCents = (): number => {
+  const raw = env.OPENAI_BUDGET_CENTS;
+  const parsed = raw === undefined ? Number.NaN : Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_BUDGET_CENTS;
+};
 
 export const openAiConfig = () => ({
   apiKey: env.OPENAI_API_KEY,
