@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "deploy": "convex deploy --yes && static-hosting deploy --skip-convex",
     "lint": "oxlint",
     "preview": "vite preview"
   },
