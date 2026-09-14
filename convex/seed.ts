@@ -281,3 +281,54 @@ export const demo = internalMutation({
     return { obligations: written, children: childIdByName.size };
   },
 });
+
+/**
+ * Forget a source and everything it produced.
+ *
+ * A page or message can turn out to be one the household never wanted read —
+ * a test, a misdirected mail, a page that was crawled by mistake. Removing the
+ * source alone would leave its obligations pointing at nothing and its lines
+ * in the history, so this takes all three together.
+ *
+ * Internal, like `demo`: there is no path to it from the browser.
+ */
+export const forgetSource = internalMutation({
+  args: { sourceId: v.id("sources") },
+  returns: v.object({ obligations: v.number(), activity: v.number() }),
+  handler: async (ctx, args) => {
+    const source = await ctx.db.get(args.sourceId);
+    if (source === null) {
+      throw new ConvexError({ code: "NOT_FOUND", entity: "source" });
+    }
+
+    const obligations = await ctx.db
+      .query("obligations")
+      .withIndex("by_source", (q) => q.eq("sourceId", args.sourceId))
+      .collect();
+
+    const removedIds = new Set(obligations.map((row) => row._id));
+    for (const row of obligations) await ctx.db.delete(row._id);
+
+    // History that names a removed obligation, plus the "new mail" line the
+    // source itself wrote, which is matched by title because activity rows do
+    // not carry a source id.
+    const history = await ctx.db
+      .query("activity")
+      .withIndex("by_household", (q) => q.eq("householdId", source.householdId))
+      .collect();
+
+    let activityRemoved = 0;
+    for (const entry of history) {
+      const namesRemoved =
+        entry.obligationId !== undefined && removedIds.has(entry.obligationId);
+      const namesSource = entry.message.includes(source.title);
+      if (namesRemoved || namesSource) {
+        await ctx.db.delete(entry._id);
+        activityRemoved += 1;
+      }
+    }
+
+    await ctx.db.delete(args.sourceId);
+    return { obligations: obligations.length, activity: activityRemoved };
+  },
+});
