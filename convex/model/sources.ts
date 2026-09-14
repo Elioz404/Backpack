@@ -41,11 +41,22 @@ export type IngestResult =
   | { status: "empty" };
 
 /**
- * Below this, a "page" is a nav bar and a footer. Set where it is because a
- * genuine one-line notice ("No school Monday, October 12") is about 35
- * characters and must survive.
+ * The floor below which there is nothing to read.
+ *
+ * It differs by kind, because the two risks are opposite. A crawled page can
+ * render down to nothing but a nav bar and a footer, and sending that to the
+ * model costs money to be told there is nothing there. A message, by contrast,
+ * was deliberately sent by a person, so almost any content in it is intended.
+ *
+ * The page floor was 30 for both, and that was wrong: "No school Monday,
+ * October 12" is 28 characters — the very example the threshold was chosen to
+ * protect — and "Early finish Friday at 1.30pm" is 29. Genuine one-line
+ * notices were being dropped in silence.
  */
-const MIN_MEANINGFUL_CHARS = 30;
+const MIN_MEANINGFUL_CHARS: Record<Doc<"sources">["kind"], number> = {
+  page: 24,
+  email: 10,
+};
 
 /**
  * Record a source, unless we have already read exactly this content.
@@ -59,7 +70,7 @@ export async function ingest(
   ctx: MutationCtx,
   input: IngestInput,
 ): Promise<IngestResult> {
-  if (input.text.length < MIN_MEANINGFUL_CHARS) {
+  if (input.text.length < MIN_MEANINGFUL_CHARS[input.kind]) {
     return { status: "empty" };
   }
 
