@@ -144,6 +144,16 @@ const SOURCES = {
   },
 };
 
+/**
+ * Where a trial board's questions to "the school office" are sent.
+ *
+ * One of this deployment's own inboxes, so that pressing Ask the school
+ * genuinely composes a message, genuinely sends it, and genuinely arrives —
+ * rather than being written by the model and then bounced off a domain that
+ * does not exist.
+ */
+const EXAMPLE_OFFICE_ADDRESS = "jealouscard638@agentmail.to";
+
 export type FillResult = { obligations: number; children: number };
 
 /**
@@ -186,10 +196,22 @@ export async function fill(
   if (schools.length === 0) {
     await ctx.db.insert("schools", {
       householdId,
-      name: "Example Primary",
-      siteUrl: "https://example-primary.test/",
-      officeEmail: "office@example-primary.test",
-      crawlLimit: 15,
+      // A real, public, crawlable school site, and an address that really
+      // receives. The seeded cards below are written rather than extracted —
+      // they exist so a new board has something on it in under a second — but
+      // the two controls that spend a sponsor's API must do real work when
+      // pressed. Pointing them at `example-primary.test`, a reserved TLD that
+      // cannot resolve, meant the first thing anyone tried failed: the crawl
+      // against nothing, and the question composed by the model and then
+      // bounced.
+      name: "Boston Public Schools — families",
+      siteUrl: "https://www.bostonpublicschools.org/students-families",
+      officeEmail: EXAMPLE_OFFICE_ADDRESS,
+      // Eight, not fifteen. Every page is one OpenAI request against a daily
+      // cap of fifty, and this is the button a first-time visitor presses —
+      // it should finish while they are still watching, and leave the day's
+      // allowance for the person after them.
+      crawlLimit: 8,
     });
   }
 

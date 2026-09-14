@@ -432,6 +432,35 @@ board in a few seconds, claimed a card and watched the header move to
 "9 OPEN · 1 TAKEN", then pressed Get an address and received
 `helpfulwinter244+<householdId>@agentmail.to` with the inbox count unmoved.
 
+### 2026-09-14 — what is seeded and what is real
+
+The trial board starts with nine written cards rather than extracted ones, so
+that a new board has something on it in under a second instead of after a
+four-minute crawl. Each says so on its own source line — "an example, not a
+real school" — because a demo that looks like real family data is how a demo
+ends up lying.
+
+But the two controls that spend a sponsor's API pointed at
+`example-primary.test`, a reserved TLD that cannot resolve. So the first thing
+any visitor would press failed: the crawl ran against nothing, and Ask the
+school composed a question with a real model call and then bounced it off a
+domain that does not exist. The seeded half was honest; the live half was
+broken, which is the worse way round.
+
+The example school now points at a real, public, crawlable site and an address
+that really receives, with a crawl limit of eight — every page is one OpenAI
+request against a daily cap of fifty, and this is the button a first-time
+visitor presses, so it should finish while they are watching and leave the
+day's allowance for the person after them.
+
+Verified from a cleared browser with no account: opened `/demo`, pressed Read
+the site, and watched a real Firecrawl crawl of a school district's family
+pages produce five genuine obligations — "Complete annual forms", "Confirm
+information on file with the district", "Fill in the contact form" — taking the
+board from nine cards to fourteen for one cent.
+
+So: the starting cards are written, everything a visitor presses is real.
+
 ### 2026-09-13 — state
 
 Live on the development deployment at https://secret-minnow-38.convex.site,
