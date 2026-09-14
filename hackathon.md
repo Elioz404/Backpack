@@ -318,6 +318,57 @@ repeating the text's mistake.
 The board did show "1 CALLS", which was a real if small defect in the rail's
 pluralisation, now fixed.
 
+### 2026-09-14 — auditing against the criteria, and what the audit found
+
+Re-read the rules and audited the code against each judging line rather than
+from memory. Two things the rules settle: Codex is required only for
+`chatgpt.site`, and "Feel free to use your favorite IDE" covers the rest; and
+nothing mandates the official Convex components for the partners — the bar is
+that they "do real work... not just sit in the README".
+
+Counted from the source: 12 public queries, 13 mutations, 3 actions, 33
+internal functions, one HTTP action, 24 indexed reads and no unindexed filter,
+54 return validators, 13 live `useQuery` subscriptions, 8 component mounts,
+crons, scheduler, pagination. Firecrawl is exercised through `startCrawl`,
+`getCrawl` and `listPages` — the durable path, not one-shot scrape. OpenAI runs
+two distinct schema-constrained jobs. AgentMail both sends and receives, with
+signature verification.
+
+The audit found two real defects, neither of which a code reading would have
+caught.
+
+**The school's office address was unreachable.** `schools.add` accepted an
+`officeEmail`, the question composer required one, and the form never asked for
+it — so "Ask the school" could never work for any real user, and an entire
+sponsor path was dead in the shipped product. The field is now on the form, and
+a school without one says so on its card.
+
+**An obligation restated in different words became a second card.** Asking the
+school about the consent form produced a reply that was read onto the board —
+correctly — but as *new* items: "Pay for the aquarium trip" landed beside "Pay
+the visit fee", both the same $12 on the same date. The fingerprint is lexical,
+and no amount of normalising makes those two strings match.
+
+The fix is to ask the thing that can judge equivalence. The extractor is now
+shown the household's open board and answers a `supersedes` field naming the
+item it is looking at again — for a restatement or for a changed deadline,
+which a fingerprint built from the date cannot match by construction. The merge
+resolves that title to the row and revises it in place, carrying the new
+fingerprint so the original notice cannot re-create the card on the next crawl.
+
+Proven on production with the same class of input that caused it: before the
+change, two `obligation_created`; after, two `obligation_revised` and the board
+count unchanged.
+
+### 2026-09-14 — the full AgentMail loop
+
+The one path never exercised: a question to the school, and its answer coming
+back. Asked from a card — the composer quoted the notice back and asked only
+what the parent asked, committing to nothing — sent from the household address,
+answered from the office, and the reply closed the question and was read onto
+the board as a source in its own right. Three model calls for the whole
+exchange: 0.21 cents.
+
 ### 2026-09-13 — state
 
 Live on the development deployment at https://secret-minnow-38.convex.site,

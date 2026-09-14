@@ -37,9 +37,10 @@ export const contextFor = internalQuery({
     const household = await ctx.db.get(source.householdId);
     if (household === null) return null;
 
-    const [children, schools] = await Promise.all([
+    const [children, schools, board] = await Promise.all([
       childrenOf(ctx, household._id),
       schoolsOf(ctx, household._id),
+      Obligations.openBoard(ctx, household._id),
     ]);
 
     return {
@@ -52,6 +53,14 @@ export const contextFor = internalQuery({
       timeZone: household.timeZone,
       childNames: children.map((child) => child.name),
       schoolNames: schools.map((school) => school.name),
+      openBoard: board.map((row) => ({
+        title: row.title,
+        kind: row.kind,
+        dueDate:
+          row.dueAt === undefined
+            ? undefined
+            : new Date(row.dueAt).toISOString().slice(0, 10),
+      })),
     };
   },
 });
@@ -155,6 +164,7 @@ export const extractSource = internalAction({
         schoolNames: context.schoolNames,
         today: todayInZone(context.timeZone, Date.now()),
         timeZone: context.timeZone,
+        openBoard: context.openBoard,
       });
 
       await ctx.runMutation(internal.pipelines.extract.recordSpend, {

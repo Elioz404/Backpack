@@ -39,6 +39,8 @@ export type ExtractedItem = {
   amountCurrency: string | undefined;
   quote: string;
   confidence: number;
+  /** Title of an item already on the board that this one replaces. */
+  supersedes: string | undefined;
 };
 
 /**
@@ -56,6 +58,7 @@ export const vExtractedItem = v.object({
   amountCurrency: v.optional(v.string()),
   quote: v.string(),
   confidence: v.number(),
+  supersedes: v.optional(v.string()),
 });
 
 export type ExtractionInput = {
@@ -69,6 +72,13 @@ export type ExtractionInput = {
   schoolNames: string[];
   today: string;
   timeZone: string;
+  /**
+   * What is already on the board. A lexical fingerprint cannot tell that "Pay
+   * the visit fee" and "Pay for the aquarium trip" are one obligation, so the
+   * model is shown the open items and asked to say when it is looking at one
+   * of them again.
+   */
+  openBoard: { title: string; kind: string; dueDate: string | undefined }[];
 };
 
 export type ExtractionResult = {
@@ -93,6 +103,7 @@ const RESPONSE_SCHEMA = {
         additionalProperties: false,
         required: [
           "title",
+          "supersedes",
           "detail",
           "kind",
           "dueDate",
@@ -152,6 +163,11 @@ const RESPONSE_SCHEMA = {
             description:
               "0 to 1. How sure you are that the source really asks this of this family, rather than being generic text or an item for someone else.",
           },
+          supersedes: {
+            type: ["string", "null"],
+            description:
+              "If this is the SAME real-world obligation as one already on the board, the exact title of that item, copied character for character from the list you were given. Use it both when the source merely restates it and when the source changes it, such as a new deadline. Null when it is genuinely new. Being the same obligation is about the real-world thing, not the wording: 'Pay the visit fee' and 'Pay for the aquarium trip' are one obligation.",
+          },
         },
       },
     },
@@ -171,6 +187,16 @@ function systemPrompt(input: ExtractionInput): string {
     "- Prefer no item over a speculative one.",
     "",
     `Today is ${input.today} in ${input.timeZone}.`,
+    input.openBoard.length > 0
+      ? [
+          "Already on this family's board:",
+          ...input.openBoard.map(
+            (item) =>
+              `- "${item.title}" (${item.kind}${item.dueDate ? `, due ${item.dueDate}` : ""})`,
+          ),
+          'If something in this source is one of those same obligations, set "supersedes" to that title exactly. Do not report it as a new item.',
+        ].join("\n")
+      : "",
     input.childNames.length > 0
       ? `The children in this household are: ${input.childNames.join(", ")}.`
       : "This household has not named its children yet, so leave childNames empty.",
@@ -291,6 +317,7 @@ export async function extractObligations(
       amountCurrency: asOptionalString(candidate.amountCurrency),
       quote,
       confidence: Math.min(1, Math.max(0, confidence)),
+      supersedes: asOptionalString(candidate.supersedes),
     });
   }
 

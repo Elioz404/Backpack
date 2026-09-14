@@ -54,12 +54,19 @@ export async function mergeExtracted(
   const childIds = matchChildren(item.childNames, input.children);
   const now = Date.now();
 
-  const existing = await ctx.db
-    .query("obligations")
-    .withIndex("by_household_and_fingerprint", (q) =>
-      q.eq("householdId", household._id).eq("fingerprint", fingerprint),
-    )
-    .unique();
+  // Two ways to recognise something already on the board. The fingerprint
+  // catches a re-crawl of the same wording; `supersedes` catches the same
+  // obligation said differently — "Pay the visit fee" and "Pay for the
+  // aquarium trip" — or said again with a new deadline, which a fingerprint
+  // built from the date cannot match by construction.
+  const existing =
+    (await findSuperseded(ctx, household._id, item.supersedes)) ??
+    (await ctx.db
+      .query("obligations")
+      .withIndex("by_household_and_fingerprint", (q) =>
+        q.eq("householdId", household._id).eq("fingerprint", fingerprint),
+      )
+      .unique());
 
   if (existing === null) {
     const obligationId = await ctx.db.insert("obligations", {
@@ -108,6 +115,10 @@ export async function mergeExtracted(
   if (!changed) return "unchanged";
 
   await ctx.db.patch(existing._id, {
+    // The fingerprint moves with the row: a granted extension changes the due
+    // date, and leaving the old fingerprint would let the original notice
+    // re-create the card on the next crawl.
+    fingerprint,
     title: item.title,
     detail: item.detail,
     dueAt,
@@ -128,6 +139,35 @@ export async function mergeExtracted(
     obligationId: existing._id,
   });
   return "revised";
+}
+
+/**
+ * The open item the extractor says it is looking at again.
+ *
+ * Matched on the exact title it was shown, case-insensitively. A title that no
+ * longer matches anything — the model invented one, or the row was completed
+ * in the meantime — resolves to nothing, and the item is treated as new rather
+ * than silently dropped.
+ */
+async function findSuperseded(
+  ctx: MutationCtx,
+  householdId: Id<"households">,
+  title: string | undefined,
+): Promise<Doc<"obligations"> | null> {
+  if (title === undefined) return null;
+  const wanted = title.trim().toLowerCase();
+
+  for (const status of ["open", "claimed"] as const) {
+    const rows = await ctx.db
+      .query("obligations")
+      .withIndex("by_household_and_status", (q) =>
+        q.eq("householdId", householdId).eq("status", status),
+      )
+      .collect();
+    const match = rows.find((row) => row.title.trim().toLowerCase() === wanted);
+    if (match !== undefined) return match;
+  }
+  return null;
 }
 
 /**

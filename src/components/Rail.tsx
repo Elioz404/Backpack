@@ -187,6 +187,7 @@ function SchoolsCard({ householdId }: { householdId: Id<"households"> }) {
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [officeEmail, setOfficeEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -197,9 +198,15 @@ function SchoolsCard({ householdId }: { householdId: Id<"households"> }) {
     setBusy(true);
     setError(null);
     try {
-      await add({ householdId, name: name.trim(), siteUrl: url.trim() });
+      await add({
+        householdId,
+        name: name.trim(),
+        siteUrl: url.trim(),
+        officeEmail: officeEmail.trim() === "" ? undefined : officeEmail.trim(),
+      });
       setName("");
       setUrl("");
+      setOfficeEmail("");
     } catch {
       setError("That did not look like a web address.");
     } finally {
@@ -241,6 +248,9 @@ function SchoolsCard({ householdId }: { householdId: Id<"households"> }) {
                 <p className="truncate font-mono text-[11px] text-ink-faint">
                   {school.siteUrl.replace(/^https?:\/\//, "")}
                 </p>
+                <p className="truncate font-mono text-[11px] text-ink-faint">
+                  {school.officeEmail ?? "no office address — cannot ask it anything"}
+                </p>
               </div>
               <Button
                 size="sm"
@@ -278,6 +288,17 @@ function SchoolsCard({ householdId }: { householdId: Id<"households"> }) {
           onChange={(event) => setUrl(event.target.value)}
           placeholder="https://school.example.edu"
           aria-label="School website"
+          spellCheck={false}
+          className="text-[13.5px]"
+        />
+        {/* Without this there is nowhere for a question to go, and the card's
+            "Ask the school" control has no recipient. */}
+        <Input
+          value={officeEmail}
+          onChange={(event) => setOfficeEmail(event.target.value)}
+          placeholder="office@school.example.edu (optional)"
+          aria-label="School office email"
+          type="email"
           spellCheck={false}
           className="text-[13.5px]"
         />
