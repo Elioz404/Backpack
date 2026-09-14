@@ -43,7 +43,10 @@ export const createAnonymousUser = internalMutation({
   },
   returns: v.id("users"),
   handler: async (ctx) => {
-    return await ctx.db.insert("users", { displayName: "You" });
+    return await ctx.db.insert("users", {
+      displayName: "You",
+      anonymous: true,
+    });
   },
 });
 
@@ -55,6 +58,7 @@ export const me = query({
     v.object({
       _id: v.id("users"),
       displayName: v.string(),
+      anonymous: v.boolean(),
     }),
   ),
   handler: async (ctx) => {
@@ -64,6 +68,10 @@ export const me = query({
     const user = await ctx.db.get(userId);
     return user === null
       ? null
-      : { _id: user._id, displayName: user.displayName };
+      : {
+          _id: user._id,
+          displayName: user.displayName,
+          anonymous: user.anonymous ?? false,
+        };
   },
 });

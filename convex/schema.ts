@@ -78,6 +78,15 @@ export default defineSchema({
   users: defineTable({
     displayName: v.string(),
     email: v.optional(v.string()),
+    /**
+     * True for a visitor who has not signed up.
+     *
+     * The interface has to know: a trial session lives in one browser, has no
+     * username for anyone to add it by, and cannot be signed back into — so
+     * the one thing it must offer is a way out of being temporary, and the
+     * one thing it must not offer casually is "sign out".
+     */
+    anonymous: v.optional(v.boolean()),
   }),
 
   /**
@@ -114,6 +123,33 @@ export default defineSchema({
     .index("by_household", ["householdId"])
     .index("by_user", ["userId"])
     .index("by_user_and_household", ["userId", "householdId"]),
+
+  /**
+   * A one-use ticket that carries a trial household onto a real account.
+   *
+   * A visitor who tries Backpack without signing up gets a genuine household:
+   * a school, an address, children, a board they have put work into. Signing
+   * up afterwards mints a brand new user, so without this that work is
+   * stranded — the new account is empty and the anonymous one has no
+   * credentials to go back in with. Which is the exact path someone takes
+   * when they have decided they like it.
+   *
+   * The ticket is minted by the household's owner while they are still signed
+   * in as the visitor, and redeemed by whoever they become. Both halves are
+   * authenticated as the right party at the right moment, so no one can claim
+   * a household that was never theirs, and a code that leaks is useless: it
+   * is single use and short lived.
+   */
+  trialClaims: defineTable({
+    householdId: v.id("households"),
+    code: v.string(),
+    mintedBy: v.id("users"),
+    expiresAt: v.number(),
+    redeemedAt: v.optional(v.number()),
+    redeemedBy: v.optional(v.id("users")),
+  })
+    .index("by_code", ["code"])
+    .index("by_household", ["householdId"]),
 
   children: defineTable({
     householdId: v.id("households"),

@@ -2,9 +2,12 @@ import {
   useSignInWithPassword,
   useSignUpWithPassword,
 } from "@convex-dev/auth/providers/password/react";
+import { useMutation } from "convex/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { Icon } from "./Icon";
+import { explainError } from "../lib/errors";
+import { forgetClaim, noteCarryFailure, pendingClaim } from "../lib/trialClaim";
 import { Button, Field, Input } from "./ui";
 
 /**
@@ -43,10 +46,18 @@ const USER_ERRORS: Record<string, string> = {
 };
 
 export function AuthScreen() {
-  const [mode, setMode] = useState<"in" | "up">("in");
+  // Someone arriving with a trial board in hand is here to make an account,
+  // not to remember one they already had.
+  const [mode, setMode] = useState<"in" | "up">(
+    pendingClaim() === null ? "in" : "up",
+  );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Read once: the ticket is cleared on submit, and the notice below should
+  // not vanish mid-sign-up because of it.
+  const [carrying] = useState(() => pendingClaim() !== null);
+  const redeemClaim = useMutation(api.households.redeemClaim);
 
   const { signIn, pending: signingIn } = useSignInWithPassword(
     api.auth.signInWithPassword,
@@ -65,6 +76,25 @@ export function AuthScreen() {
     if (!result.success) {
       setError(
         USER_ERRORS[result.userError.error] ?? USER_ERRORS.OTHER_ERROR,
+      );
+      return;
+    }
+
+    // A board carried over from a trial session. Redeemed here rather than
+    // anywhere else because this is the first moment the new account exists
+    // and is signed in — and the ticket is dropped either way, so a failure
+    // leaves someone with an empty board rather than a prompt that keeps
+    // coming back.
+    const carried = pendingClaim();
+    if (carried === null) return;
+    forgetClaim();
+    try {
+      await redeemClaim({ code: carried });
+    } catch (caught) {
+      // Left for the board to say, because this screen is about to be
+      // replaced by it.
+      noteCarryFailure(
+        explainError(caught, "Your trial board could not be moved over."),
       );
     }
   }
@@ -150,9 +180,21 @@ export function AuthScreen() {
                 {mode === "in" ? "Sign in" : "New household"}
               </p>
               <h2 className="display mt-1.5 text-[22px]">
-                {mode === "in" ? "Welcome back." : "Start a Backpack."}
+                {carrying
+                  ? "Keep your board."
+                  : mode === "in"
+                    ? "Welcome back."
+                    : "Start a Backpack."}
               </h2>
             </div>
+
+            {carrying ? (
+              <p className="text-[13px] leading-relaxed text-ink-soft">
+                The board you have been using moves to this account — the
+                school, the address it reads mail at, and everything already
+                on it.
+              </p>
+            ) : null}
 
             <Field label="Username">
               {(id) => (

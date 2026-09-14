@@ -63,6 +63,7 @@ function SignedIn() {
     <Board
       householdId={household._id}
       userId={me._id}
+      anonymous={me.anonymous}
       onSignOut={() => {
         void signOut();
       }}

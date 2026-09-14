@@ -216,3 +216,122 @@ export const addMember = mutation({
     return null;
   },
 });
+
+/**
+ * How long a claim is worth anything.
+ *
+ * Long enough to pick a username and a password without being rushed, short
+ * enough that a code left behind in a shared browser is inert by the time
+ * anyone finds it.
+ */
+const CLAIM_MINUTES = 30;
+
+function claimCode(): string {
+  // Web Crypto is available in the Convex runtime. 256 bits, so guessing one
+  // is not a strategy.
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Mint the ticket that carries this household onto a real account.
+ *
+ * Called while still signed in as the trial visitor, so ownership is proved
+ * by the session that is about to be replaced rather than by the code itself.
+ * Minting again supersedes the last one: a visitor who starts signing up,
+ * wanders off and comes back should not be holding a stale ticket.
+ */
+export const mintClaim = mutation({
+  args: { householdId: v.id("households") },
+  returns: v.string(),
+  handler: async (ctx, args) => {
+    await requireOwnership(ctx, args.householdId);
+    const userId = await requireUserId(ctx);
+
+    const previous = await ctx.db
+      .query("trialClaims")
+      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .collect();
+    for (const claim of previous) {
+      if (claim.redeemedAt === undefined) await ctx.db.delete(claim._id);
+    }
+
+    const code = claimCode();
+    await ctx.db.insert("trialClaims", {
+      householdId: args.householdId,
+      code,
+      mintedBy: userId,
+      expiresAt: Date.now() + CLAIM_MINUTES * 60_000,
+    });
+    return code;
+  },
+});
+
+/**
+ * Redeem it, as whoever the visitor just became.
+ *
+ * The household moves rather than being shared: the trial session is being
+ * replaced, not joined, and leaving its membership in place would mean the
+ * next person to open that browser still sees the family's board.
+ *
+ * Refused when the caller already has a household of their own. Merging two
+ * boards is a different feature with different questions — which name wins,
+ * which address the school should now use — and quietly attaching a second
+ * household the interface does not show would be worse than saying no.
+ */
+export const redeemClaim = mutation({
+  args: { code: v.string() },
+  returns: v.object({ householdId: v.id("households"), name: v.string() }),
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+
+    const claim = await ctx.db
+      .query("trialClaims")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .unique();
+
+    if (claim === null || claim.redeemedAt !== undefined) {
+      throw new ConvexError({ code: "NOT_FOUND", entity: "claim" });
+    }
+    if (claim.expiresAt < Date.now()) {
+      throw new ConvexError({ code: "EXPIRED", entity: "claim" });
+    }
+
+    const mine = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    if (mine.length > 0) {
+      throw new ConvexError({ code: "ALREADY_IN_HOUSEHOLD" });
+    }
+
+    const household = await ctx.db.get(claim.householdId);
+    if (household === null) {
+      throw new ConvexError({ code: "NOT_FOUND", entity: "household" });
+    }
+
+    // Out with the trial session's claim on it, in with the account's.
+    const previous = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_household", (q) =>
+        q.eq("userId", claim.mintedBy).eq("householdId", claim.householdId),
+      )
+      .unique();
+    if (previous !== null) await ctx.db.delete(previous._id);
+
+    await ctx.db.insert("memberships", {
+      householdId: claim.householdId,
+      userId,
+      role: "owner",
+      joinedAt: Date.now(),
+    });
+    await ctx.db.patch(claim.householdId, { createdBy: userId });
+    await ctx.db.patch(claim._id, {
+      redeemedAt: Date.now(),
+      redeemedBy: userId,
+    });
+
+    return { householdId: claim.householdId, name: household.name };
+  },
+});

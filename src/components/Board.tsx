@@ -2,7 +2,9 @@ import { useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { explainError } from "../lib/errors";
 import { BUCKET_LABELS, bucketOf, type Bucket } from "../lib/format";
+import { rememberClaim, takeCarryFailure } from "../lib/trialClaim";
 import { AskDialog } from "./AskDialog";
 import { BoardRow, type BoardCard } from "./BoardRow";
 import { Facepile } from "./Facepile";
@@ -23,15 +25,21 @@ const BUCKET_ORDER: Bucket[] = ["overdue", "today", "week", "later", "undated"];
 export function Board({
   householdId,
   userId,
+  anonymous,
   onSignOut,
 }: {
   householdId: Id<"households">;
   userId: Id<"users">;
+  /** A visitor who has not signed up: this board lives in this browser only. */
+  anonymous: boolean;
   onSignOut: () => void;
 }) {
   const household = useQuery(api.households.get, { householdId });
   const cards = useQuery(api.board.cards, { householdId });
   const [asking, setAsking] = useState<BoardCard | null>(null);
+  // Read once, at mount: a hand-off that failed on the way in has no other
+  // screen left to report from.
+  const [carryFailure, setCarryFailure] = useState(takeCarryFailure);
 
   // Bucket boundaries are relative to "now", so the board re-groups itself as
   // the day turns rather than going stale until someone reloads.
@@ -89,12 +97,33 @@ export function Board({
                 members={household.members}
               />
             ) : null}
+            {anonymous ? (
+              <KeepBoard householdId={householdId} onSignOut={onSignOut} />
+            ) : null}
             <Button size="sm" tone="ghost" onClick={onSignOut}>
-              Sign out
+              {anonymous ? "Discard" : "Sign out"}
             </Button>
           </div>
         </div>
       </header>
+
+      {carryFailure !== null ? (
+        <div className="border-b border-rule bg-sheet-sunk">
+          <div className="mx-auto flex max-w-5xl items-start gap-3 px-5 py-2.5 sm:px-7 2xl:max-w-[80rem]">
+            <p className="text-[13px] leading-relaxed text-ink-soft">
+              {carryFailure}
+            </p>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => setCarryFailure(null)}
+              className="ml-auto shrink-0 text-ink-faint hover:text-ink"
+            >
+              <Icon name="close" size={14} />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/*
         Capped for reading, but not at one width forever. On a 1080p monitor a
@@ -263,6 +292,56 @@ function Skeleton() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The way out of being temporary.
+ *
+ * A trial board is real work — a school, an address, children, cards someone
+ * has claimed — living in one browser under an account with no password. The
+ * moment a visitor decides they want it, they need somewhere to put it, and
+ * signing up on its own would hand them an empty one.
+ *
+ * So the board comes with them: a single-use ticket is minted here, while the
+ * trial session can still prove it owns the household, and redeemed on the
+ * other side as whoever they become.
+ */
+function KeepBoard({
+  householdId,
+  onSignOut,
+}: {
+  householdId: Id<"households">;
+  onSignOut: () => void;
+}) {
+  const mint = useMutation(api.households.mintClaim);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function keep() {
+    setBusy(true);
+    setError(null);
+    try {
+      rememberClaim(await mint({ householdId }));
+      // The trial session has to end here, or signing up is unreachable: the
+      // visitor is still authenticated as the anonymous user, and the root
+      // would just render this same board again. The ticket is already in
+      // hand, which is what makes ending it safe.
+      onSignOut();
+      window.location.assign("/");
+    } catch (caught) {
+      setBusy(false);
+      setError(explainError(caught, "Could not start that."));
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {error ? <span className="text-[12px] text-overdue">{error}</span> : null}
+      <Button size="sm" tone="primary" disabled={busy} onClick={keep}>
+        {busy ? "One moment…" : "Keep this board"}
+      </Button>
     </div>
   );
 }
