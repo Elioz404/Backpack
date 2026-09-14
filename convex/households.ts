@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { components } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import * as Example from "./model/example";
 import { isValidTimeZone } from "./lib/time";
@@ -161,28 +162,46 @@ export const fillWithExample = mutation({
 });
 
 /**
- * Add someone who already has an account to this household.
+ * Add the other parent to this household, by the username they signed up with.
  *
- * Invitation by username rather than by email link: the second parent is
- * usually standing right there, and a link that has to survive a mail round
- * trip is a worse experience than typing a name. Idempotent, so inviting
- * someone twice is not an error.
+ * By username rather than by an emailed link: the second parent is usually
+ * standing right there, and a link that has to survive a mail round trip is a
+ * worse experience than typing a name. It also means the whole point of the
+ * product — two people on one board — needs no mail to be deliverable before
+ * it works.
+ *
+ * Idempotent, so inviting someone twice is not an error, and it refuses
+ * politely rather than revealing whether a username exists on this
+ * deployment... except that it cannot: the inviter has to be told when they
+ * have typed the name wrong, or they will sit waiting for someone who was
+ * never added. Names are not secrets here.
  */
 export const addMember = mutation({
-  args: { householdId: v.id("households"), userId: v.id("users") },
+  args: { householdId: v.id("households"), username: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
     await requireOwnership(ctx, args.householdId);
 
-    const invitee = await ctx.db.get(args.userId);
-    if (invitee === null) {
+    const username = args.username.trim();
+    if (username === "") {
+      throw new ConvexError({ code: "INVALID", field: "username" });
+    }
+
+    const inviteeId: string | null = await ctx.runQuery(
+      components.authUsername.public.getUserIdByUsername,
+      { username },
+    );
+    const userId =
+      inviteeId === null ? null : ctx.db.normalizeId("users", inviteeId);
+
+    if (userId === null) {
       throw new ConvexError({ code: "NOT_FOUND", entity: "user" });
     }
 
     const existing = await ctx.db
       .query("memberships")
       .withIndex("by_user_and_household", (q) =>
-        q.eq("userId", args.userId).eq("householdId", args.householdId),
+        q.eq("userId", userId).eq("householdId", args.householdId),
       )
       .unique();
 
@@ -190,7 +209,7 @@ export const addMember = mutation({
 
     await ctx.db.insert("memberships", {
       householdId: args.householdId,
-      userId: args.userId,
+      userId,
       role: "parent",
       joinedAt: Date.now(),
     });

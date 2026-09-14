@@ -25,6 +25,7 @@ export function Rail({
 }) {
   return (
     <aside className="grid content-start gap-7">
+      <MembersCard householdId={householdId} />
       <InboxCard householdId={householdId} inboxAddress={inboxAddress} />
       <ChildrenCard householdId={householdId} />
       <SchoolsCard householdId={householdId} />
@@ -32,6 +33,92 @@ export function Rail({
       <SpendCard />
       <ActivityLog householdId={householdId} />
     </aside>
+  );
+}
+
+/**
+ * Who is on this board.
+ *
+ * The product's whole claim is that two parents watch one list, and until this
+ * existed there was no way to add the second one: the mutation was there, the
+ * README described it, and the interface never asked. A household could only
+ * ever have the person who created it.
+ *
+ * By username, because the other parent is usually standing right there.
+ */
+function MembersCard({ householdId }: { householdId: Id<"households"> }) {
+  const household = useQuery(api.households.get, { householdId });
+  const addMember = useMutation(api.households.addMember);
+  const [username, setUsername] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const name = username.trim();
+    if (name === "") return;
+    setBusy(true);
+    setError(null);
+    try {
+      await addMember({ householdId, username: name });
+      setUsername("");
+    } catch (caught) {
+      setError(explainError(caught, "Could not add them."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="grid gap-3">
+      <RuledHeading
+        trailing={household ? String(household.members.length) : undefined}
+      >
+        On this board
+      </RuledHeading>
+
+      {household === undefined ? (
+        <p className="text-[13px] text-ink-faint">Loading…</p>
+      ) : (
+        <ul className="flex flex-wrap gap-x-3 gap-y-1.5">
+          {household.members.map((member) => (
+            <li key={member.userId}>
+              <Chip
+                color="var(--color-ballpoint)"
+                title={member.role === "owner" ? "Started this board" : "Member"}
+              >
+                {member.displayName}
+              </Chip>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {household?.role === "owner" ? (
+        <form onSubmit={submit} className="flex items-end gap-2">
+          <Input
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            placeholder="Add by username"
+            aria-label="Their username"
+            autoCapitalize="none"
+            spellCheck={false}
+            className="text-[13.5px]"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            tone="ghost"
+            disabled={busy || username.trim() === ""}
+            aria-label="Add them to this board"
+          >
+            {busy ? <Spinner /> : <Icon name="plus" size={14} />}
+          </Button>
+        </form>
+      ) : null}
+
+      {error ? <p className="text-[12px] text-overdue">{error}</p> : null}
+    </section>
   );
 }
 
