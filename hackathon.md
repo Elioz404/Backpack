@@ -3,10 +3,10 @@
 - **Project:** Backpack
 - **Event:** Convex All Gas Hackathon
 - **What it does:** Points at a school's website and takes in the school mail a family forwards, and keeps one live shared board of what that family actually has to do — forms to sign, money to send, days off, things to bring — with the sentence from the source that says so.
-- **Live app:** https://secret-minnow-38.convex.site (development deployment)
-- **Repo:** none
+- **Live app:** https://resilient-mastiff-559.convex.site
+- **Repo:** https://github.com/Elioz404/Backpack (public)
 - **Frontend:** Convex static hosting
-- **Convex deployment:** https://secret-minnow-38.convex.cloud (development)
+- **Convex deployment:** https://resilient-mastiff-559.convex.cloud (production); secret-minnow-38 (development)
 - **Components:** @convex-dev/static-hosting, @convex-dev/auth (core, username, password provider), @firecrawl/firecrawl-convex, @convex-dev/workpool, @convex-dev/rate-limiter, @convex-dev/presence
 - **Convex features:** schema with indexes, reactive queries, mutations, actions, internal functions, HTTP actions, typed component environment, the scheduler, pagination, cron jobs, static hosting
 - **Auth:** Convex Auth
@@ -255,6 +255,30 @@ rethrown into the pool's retry, because retrying a refusal only burns the retry
 slots — the page stays unread and the board says so. The spend is on screen in
 the app, because a number you have to find in a dashboard is one you find too
 late.
+
+### 2026-09-13 — production
+
+Deployed to production at https://resilient-mastiff-559.convex.site, with its
+own signing keys, its own copies of the three service keys, and its own spend
+ceiling of 200 cents — separate from development's 100, so the two ledgers
+together cannot reach the account's $5 without a deliberate change.
+
+Verified on the production origin rather than assumed: the routes answer
+(`/` the SPA, `/auth/.well-known/jwks.json`, `/firecrawl/webhook` on POST), the
+published bundle points at the production backend, and a fresh account was
+created against the empty production database — sign-up, household, board.
+
+Two gaps that are deliberate rather than missed. `AGENTMAIL_WEBHOOK_SECRET` is
+unset, so the inbound route answers 503 and refuses: without the secret there
+is no way to tell AgentMail apart from anyone who has guessed the URL, and
+refusing is the only safe answer. And AgentMail's free tier allows three
+inboxes in total, all three of which are already in use, so the first household
+created in production cannot be given an address until one is freed.
+
+Also removed two leftovers from the Vite template, `public/icons.svg` and
+`public/favicon.svg`, which nothing referenced and which were being uploaded on
+every deploy — the sprite still carried a Bluesky icon. The published site is
+four files.
 
 ### 2026-09-13 — state
 
