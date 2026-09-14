@@ -464,15 +464,30 @@ function UnreadCard({ householdId }: { householdId: Id<"households"> }) {
   const [busy, setBusy] = useState(false);
 
   if (health === undefined) return null;
-  if (health.unread === 0) return null;
+  if (health.reading === 0 && health.stuck === 0) return null;
+
+  // Being read right now is not a problem to report. It is the product
+  // working, and it says so quietly and without a button.
+  if (health.stuck === 0) {
+    return (
+      <section className="grid gap-2.5">
+        <RuledHeading trailing={String(health.reading)}>Reading</RuledHeading>
+        <p className="flex items-center gap-2 text-[13px] text-ink-soft">
+          <Spinner />
+          {health.reading} page{health.reading === 1 ? "" : "s"} still going
+          through.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="grid gap-3">
-      <RuledHeading trailing={String(health.unread)}>Not read yet</RuledHeading>
+      <RuledHeading trailing={String(health.stuck)}>Not read yet</RuledHeading>
 
       <p className="text-[13px] leading-relaxed text-ink-soft">
-        {health.unread} page{health.unread === 1 ? "" : "s"} reached your
-        household but {health.unread === 1 ? "has" : "have"} not been read onto
+        {health.stuck} page{health.stuck === 1 ? "" : "s"} reached your
+        household but {health.stuck === 1 ? "has" : "have"} not been read onto
         the board.
       </p>
 

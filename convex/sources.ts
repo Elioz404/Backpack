@@ -22,42 +22,74 @@ import { requireMembership } from "./model/households";
  */
 const MAX_REPORTED = 200;
 
-/** How many pages are still unread, so the board can offer to try again. */
+/**
+ * How long a page may sit `pending` before something is assumed to have gone
+ * wrong with its job. A twelve page crawl finishes inside two minutes, so
+ * anything still waiting after five is not waiting, it is stranded.
+ */
+const STUCK_AFTER_MS = 5 * 60 * 1000;
+
+/**
+ * What the board should say about pages it has taken in but not yet turned
+ * into cards.
+ *
+ * Two different situations, and conflating them was a real fault: a page that
+ * is being read right now is `pending`, and so is a page whose job died.
+ * Counting both as "not read yet" meant every normal crawl announced twelve
+ * failures while it was working perfectly, under a button offering to retry
+ * work that was already running — which re-queued it and paid for the same
+ * pages twice.
+ */
 export const health = query({
   args: { householdId: v.id("households") },
   returns: v.object({
-    unread: v.number(),
-    failed: v.number(),
+    /** In flight. Nothing to do but wait. */
+    reading: v.number(),
+    /** Failed, or waiting so long that its job is gone. Worth a retry. */
+    stuck: v.number(),
     lastError: v.union(v.string(), v.null()),
   }),
   handler: async (ctx, args) => {
     await requireMembership(ctx, args.householdId);
 
-    // Read by household rather than by state: any state that is not `done` is
-    // unread, and asking the question that way means a state added later
-    // cannot quietly fall outside the count.
     const sources = await ctx.db
       .query("sources")
       .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
       .take(MAX_REPORTED);
 
-    const unread = sources.filter((source) => source.extraction !== "done");
-    const failed = unread.filter((source) => source.extraction === "failed");
+    const cutoff = Date.now() - STUCK_AFTER_MS;
+    let reading = 0;
+    let stuck = 0;
+    let lastError: string | null = null;
 
-    return {
-      unread: unread.length,
-      failed: failed.length,
-      // One reason is enough to act on, and they are nearly always the same.
-      lastError: failed[0]?.extractionError ?? null,
-    };
+    for (const source of sources) {
+      // `done` is finished and `skipped` is a decision, not a failure: a page
+      // with nothing on it worth doing was read correctly.
+      if (source.extraction === "done" || source.extraction === "skipped") {
+        continue;
+      }
+      if (source.extraction === "failed") {
+        stuck += 1;
+        lastError ??= source.extractionError ?? null;
+      } else if (source._creationTime < cutoff) {
+        stuck += 1;
+      } else {
+        reading += 1;
+      }
+    }
+
+    return { reading, stuck, lastError };
   },
 });
 
 /**
- * Queue every page that has not been read yet. Safe to press twice.
+ * Queue the pages that are stranded — and only those.
  *
- * Each page is set back to `pending` before its job is queued, so pressing it
- * again while the pool is still draining does not enqueue the same page twice.
+ * It used to re-queue everything that was not `done`, which included the
+ * pages currently being read. Setting a `pending` row back to `pending` does
+ * not cancel the job already carrying it, so each of those pages was read,
+ * and paid for, twice. Same rule as the panel that offers this: a page whose
+ * job is still alive is left alone.
  */
 export const retryUnread = mutation({
   args: { householdId: v.id("households") },
@@ -70,9 +102,13 @@ export const retryUnread = mutation({
       .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
       .take(MAX_REPORTED);
 
+    const cutoff = Date.now() - STUCK_AFTER_MS;
     let queued = 0;
     for (const source of sources) {
-      if (source.extraction === "done") continue;
+      const stranded =
+        source.extraction === "failed" ||
+        (source.extraction === "pending" && source._creationTime < cutoff);
+      if (!stranded) continue;
 
       await ctx.db.patch(source._id, {
         extraction: "pending",
