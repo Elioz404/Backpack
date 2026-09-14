@@ -89,35 +89,57 @@ export const onMessageReceived = internalMutation({
     const message = readMessage(args.message);
     if (message === null || message.text.trim() === "") return null;
 
-    // Route on the address it was actually sent to. This one lookup covers
-    // both shapes — a sub-addressed household stores `inbox+id@` and a
-    // household from before sub-addressing stores the bare `inbox@` — and it
-    // is an indexed read either way. Every recipient is tried, because a
-    // forwarded message often carries several and only one is ours.
+    // Deciding whose board a message belongs on, strongest signal first.
+    //
+    // Order matters more than it looks. Every household shares one inbox, so
+    // the bare address names no household at all — matching on it would drop
+    // every untagged message onto whichever board happens to hold it, which
+    // is one family reading another family's mail.
+    const mailbox = await ctx.db.query("mailbox").first();
+    const sharedAddress = mailbox?.address ?? null;
+
     let household = null;
+
+    // 1. The tag on the envelope names the household outright. Accepted only
+    //    when that household really claimed this inbox, so a guessed id
+    //    cannot put mail on someone else's board.
     for (const address of message.to) {
-      household = await ctx.db
-        .query("households")
-        .withIndex("by_inbox_address", (q) => q.eq("inboxAddress", address))
-        .first();
-      if (household !== null) break;
+      const tag = tagOf(address);
+      if (tag === undefined) continue;
+      const householdId = ctx.db.normalizeId("households", tag);
+      if (householdId === null) continue;
+      const candidate = await ctx.db.get(householdId);
+      if (candidate !== null && candidate.inboxId === message.inboxId) {
+        household = candidate;
+        break;
+      }
     }
 
-    // A tag that names a real household but whose address we have not stored
-    // — an address rewritten in transit, say. Accepted only when that
-    // household actually claimed this inbox, so a guessed id cannot put mail
-    // on someone else's board.
+    // 2. A reply on a thread this deployment started. Questions go out with
+    //    Reply-To set to the household's sub-address, but a mail client is
+    //    free to answer the From address instead — and that is the bare
+    //    shared inbox. The thread id was minted by our own send, so it
+    //    identifies the household as surely as the tag, and unlike an address
+    //    it cannot be guessed from outside.
+    if (household === null) {
+      const question = await ctx.db
+        .query("questions")
+        .withIndex("by_thread", (q) => q.eq("threadId", message.threadId))
+        .unique();
+      if (question !== null) household = await ctx.db.get(question.householdId);
+    }
+
+    // 3. A household from before the inbox was shared still owns an inbox of
+    //    its own, and mail to it is unambiguous. The shared address is
+    //    excluded here for the reason above: it belongs to no one household.
     if (household === null) {
       for (const address of message.to) {
-        const tag = tagOf(address);
-        if (tag === undefined) continue;
-        const householdId = ctx.db.normalizeId("households", tag);
-        if (householdId === null) continue;
-        const candidate = await ctx.db.get(householdId);
-        if (candidate !== null && candidate.inboxId === message.inboxId) {
-          household = candidate;
-          break;
-        }
+        if (address === sharedAddress) continue;
+        household = await ctx.db
+          .query("households")
+          .withIndex("by_inbox_address", (q) => q.eq("inboxAddress", address))
+          .first();
+        if (household !== null) break;
       }
     }
 
@@ -195,7 +217,11 @@ export const recordMessage = internalMutation({
       .withIndex("by_thread", (q) => q.eq("threadId", args.threadId))
       .unique();
 
-    if (question !== null && question.status !== "answered") {
+    if (
+      question !== null &&
+      question.householdId === args.householdId &&
+      question.status !== "answered"
+    ) {
       await ctx.db.patch(question._id, {
         status: "answered",
         answeredAt: Date.now(),

@@ -109,18 +109,30 @@ export async function createInbox(request_: {
   });
 }
 
+/**
+ * Send from an inbox.
+ *
+ * `replyTo` matters more than it looks. Every household shares one inbox and
+ * is told apart by the `+householdId` tag on the address mail arrives at — but
+ * a message sent from that inbox goes out as the bare `inbox@`, so a reply to
+ * it comes back untagged and inbound routing has nothing to route on. Setting
+ * Reply-To to the household's own sub-address is what makes an answer from the
+ * school office land on the board that asked for it.
+ */
 export async function sendMessage(
   inboxId: string,
   message: {
     to: string;
     subject: string;
     text: string;
+    replyTo?: string;
     labels?: string[];
   },
 ): Promise<SentMessage> {
+  const { replyTo, ...rest } = message;
   return await request<SentMessage>(
     `/inboxes/${encodeURIComponent(inboxId)}/messages/send`,
-    { method: "POST", body: message },
+    { method: "POST", body: { ...rest, reply_to: replyTo } },
   );
 }
 

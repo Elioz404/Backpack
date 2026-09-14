@@ -77,6 +77,7 @@ export const prepare = internalQuery({
     askedBy: v.string(),
     askedById: v.id("users"),
     inboxId: v.union(v.string(), v.null()),
+    inboxAddress: v.union(v.string(), v.null()),
     officeEmail: v.union(v.string(), v.null()),
     context: v.union(
       v.null(),
@@ -123,6 +124,7 @@ export const prepare = internalQuery({
       askedBy: user?.displayName ?? "A parent",
       askedById: userId,
       inboxId: household.inboxId ?? null,
+      inboxAddress: household.inboxAddress ?? null,
       officeEmail,
       context,
     };
@@ -298,6 +300,11 @@ export const ask = action({
         to: prepared.officeEmail,
         subject: draft.subject,
         text: draft.body,
+        // The inbox is shared, so the message goes out as the bare address
+        // and an answer to it would come back with nothing to route on.
+        // Reply-To is the household's own sub-address, which is what puts the
+        // school's answer on the board that asked the question.
+        replyTo: prepared.inboxAddress ?? undefined,
         // Labelled so the thread is identifiable in the AgentMail inbox
         // itself, not only through this app.
         labels: ["backpack", "school-question"],
