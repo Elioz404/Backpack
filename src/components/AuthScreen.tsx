@@ -16,11 +16,26 @@ import { Button, Field, Input } from "./ui";
  * first and a mailed link is a worse experience than typing a name.
  */
 
+/**
+ * Every code the auth component can return, said plainly.
+ *
+ * The list has to be complete. Anything missing falls through to "Something
+ * went wrong", and the most likely failure on this form by a distance is a
+ * username someone else already has — which is both certain to happen and
+ * trivial to act on, as long as the form says so.
+ */
 const USER_ERRORS: Record<string, string> = {
   INVALID_CREDENTIALS: "That username and password do not match.",
   USER_NOT_FOUND: "No account with that username.",
+  USERNAME_TAKEN: "That username is taken. Try another.",
+  USERNAME_TOO_SHORT: "Pick a longer username.",
+  USERNAME_HAS_INVALID_CHARACTERS:
+    "Usernames can use letters, numbers, dots, dashes and underscores.",
+  USERNAME_HAS_SURROUNDING_WHITESPACE:
+    "That username starts or ends with a space.",
   PASSWORD_TOO_SHORT: "Pick a longer password — at least 8 characters.",
   PASSWORD_TOO_LONG: "That password is too long.",
+  PASSWORD_TOO_COMMON: "That password is too easy to guess. Pick another.",
   PASSWORD_HAS_SURROUNDING_WHITESPACE:
     "That password starts or ends with a space.",
   RATE_LIMITED: "Too many attempts. Wait a moment and try again.",
