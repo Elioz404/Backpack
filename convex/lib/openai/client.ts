@@ -17,6 +17,13 @@ import { openAiConfig } from "../config";
 
 const API_BASE = "https://api.openai.com/v1";
 
+/**
+ * The longest a rate-limit wait is worth sitting through. Beyond this the
+ * limit being hit is a daily one, not a per-minute one, and waiting it out
+ * inside a queued job helps nobody.
+ */
+const MAX_WAIT_SECONDS = 45;
+
 export class OpenAiError extends Error {
   readonly status: number;
 
@@ -173,6 +180,19 @@ async function fetchWithRetry(
         `OpenAI returned ${response.status}: ${body.slice(0, 300)}`,
       );
       if (!retryable || attempt === maxRetries) throw lastError;
+
+      // When OpenAI says how long to wait, believe it. A per-minute limit is
+      // worth sleeping through; a per-day one is not — an account capped at 50
+      // requests a day answers "try again in 28m48s", and an action that sat
+      // there would hold a pool slot for half an hour to make one call. Past
+      // the threshold the attempt is abandoned, which leaves the page unread
+      // and the reason on screen instead of hidden inside a sleeping job.
+      const retryAfter = Number(response.headers.get("retry-after"));
+      if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        if (retryAfter > MAX_WAIT_SECONDS) throw lastError;
+        await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+        continue;
+      }
     } catch (error) {
       lastError = error;
       if (error instanceof OpenAiError && error.status < 429) throw error;
@@ -180,8 +200,9 @@ async function fetchWithRetry(
     }
 
     // Exponential, with jitter so a batch of extractions does not retry in
-    // lockstep and trip the rate limit again together.
-    const backoff = 500 * 2 ** attempt + Math.random() * 250;
+    // lockstep and trip the rate limit again together. Starts at two seconds
+    // because the limit being waited out is per minute, not per second.
+    const backoff = 2_000 * 2 ** attempt + Math.random() * 1_000;
     await new Promise((resolve) => setTimeout(resolve, backoff));
   }
 

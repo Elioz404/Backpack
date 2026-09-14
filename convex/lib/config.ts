@@ -56,7 +56,7 @@ const DEFAULT_BUDGET_CENTS = 400;
 
 /** Model calls are bounded so one pathological page cannot stall a crawl. */
 const OPENAI_TIMEOUT_MS = 90_000;
-const OPENAI_MAX_RETRIES = 2;
+const OPENAI_MAX_RETRIES = 4;
 
 /**
  * How much of a page or message the model is shown.
@@ -69,8 +69,16 @@ const OPENAI_MAX_RETRIES = 2;
  */
 export const MAX_SOURCE_CHARS = 8_000;
 
-/** Concurrency for the extraction pool: OpenAI calls in flight at once. */
-export const EXTRACTION_CONCURRENCY = 4;
+/**
+ * Concurrency for the extraction pool: OpenAI calls in flight at once.
+ *
+ * Two, not four. A new OpenAI account's per-minute token limit is low enough
+ * that four parallel extractions trip it together, and four callers then back
+ * off in the same window and trip it again — 23 of one 40-page crawl failed
+ * that way. The pool exists to make the fan-out polite; this is the number
+ * that makes it so.
+ */
+export const EXTRACTION_CONCURRENCY = 2;
 
 /** A crawl is a spend, so each household gets a bounded number of them. */
 export const CRAWL_RATE_LIMIT = {

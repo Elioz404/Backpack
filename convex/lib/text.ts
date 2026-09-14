@@ -10,10 +10,24 @@ import { MAX_SOURCE_CHARS } from "./config";
  * Collapse the differences that do not change meaning, so the same page
  * fetched twice hashes the same. Line structure is kept because the extractor
  * relies on it to quote accurately.
+ *
+ * Markdown link and image syntax is flattened first. A rendered school page is
+ * mostly navigation, and in markdown every one of those links carries a URL far
+ * longer than its own text: the first 900 characters of one real page were a
+ * skip link, a search box and two image URLs, without a sentence among them.
+ * Dropping the targets and keeping the words leaves the same readable text at a
+ * fraction of the size — which is both what the model should be reading and
+ * what we are paying to send it.
  */
 export function normaliseText(raw: string): string {
   return raw
     .replace(/\r\n?/g, "\n")
+    // Images say nothing a family must act on, and their URLs are enormous.
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    // Links keep their text and lose their target.
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    // Bare URLs, including any the two rules above leave behind.
+    .replace(/<?\bhttps?:\/\/[^\s)>\]]+>?/g, "")
     .replace(/[ \t ]+/g, " ")
     .replace(/ *\n */g, "\n")
     .replace(/\n{3,}/g, "\n\n")
