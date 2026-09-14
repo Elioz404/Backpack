@@ -1,0 +1,170 @@
+import { v } from "convex/values";
+import { internal } from "../_generated/api";
+import { internalAction, internalMutation } from "../_generated/server";
+import { extractionPool } from "../lib/pools";
+import * as Activity from "../model/activity";
+import * as Sources from "../model/sources";
+
+/**
+ * Mail arriving at a household inbox.
+ *
+ * Two kinds land here and they are handled differently. A reply on a thread we
+ * started is the answer to a question the family asked the school, and it
+ * closes that question. Anything else — a newsletter a parent forwarded, a
+ * note from a teacher — is a new source to read.
+ *
+ * Either way the message becomes a source, because an answer from the office
+ * ("the trip is now the 14th") is exactly the kind of thing the board should
+ * pick up.
+ */
+
+/** Narrow the component's untyped payload to the fields this pipeline uses. */
+function readMessage(raw: unknown): {
+  inboxId: string;
+  threadId: string;
+  messageId: string;
+  subject: string;
+  from: string;
+  text: string;
+} | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const message = raw as Record<string, unknown>;
+
+  const asString = (value: unknown): string =>
+    typeof value === "string" ? value : "";
+
+  const inboxId = asString(message.inbox_id);
+  const threadId = asString(message.thread_id);
+  const messageId = asString(message.message_id);
+  if (inboxId === "" || threadId === "" || messageId === "") return null;
+
+  return {
+    inboxId,
+    threadId,
+    messageId,
+    subject: asString(message.subject),
+    from: asString(message.from),
+    // `text` is the plain-text body; `extracted_text` is what AgentMail
+    // recovers from an HTML-only message.
+    text: asString(message.text) || asString(message.extracted_text),
+  };
+}
+
+/**
+ * The component hands every verified inbound message here, already deduped by
+ * event id. Hashing the body needs `crypto.subtle`, so the work moves to an
+ * action and this stays a routing decision.
+ */
+export const onMessageReceived = internalMutation({
+  args: { message: v.any(), thread: v.any(), eventId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const message = readMessage(args.message);
+    if (message === null || message.text.trim() === "") return null;
+
+    const household = await ctx.db
+      .query("households")
+      .withIndex("by_inbox", (q) => q.eq("inboxId", message.inboxId))
+      .unique();
+
+    // Mail for an inbox this deployment does not own.
+    if (household === null) return null;
+
+    await ctx.scheduler.runAfter(0, internal.pipelines.mailIngest.ingestMessage, {
+      householdId: household._id,
+      threadId: message.threadId,
+      messageId: message.messageId,
+      subject: message.subject,
+      from: message.from,
+      body: message.text,
+    });
+    return null;
+  },
+});
+
+export const ingestMessage = internalAction({
+  args: {
+    householdId: v.id("households"),
+    threadId: v.string(),
+    messageId: v.string(),
+    subject: v.string(),
+    from: v.string(),
+    body: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { text, hash } = await Sources.prepare(args.body);
+    await ctx.runMutation(internal.pipelines.mailIngest.recordMessage, {
+      householdId: args.householdId,
+      threadId: args.threadId,
+      messageId: args.messageId,
+      subject: args.subject,
+      from: args.from,
+      text,
+      hash,
+    });
+    return null;
+  },
+});
+
+export const recordMessage = internalMutation({
+  args: {
+    householdId: v.id("households"),
+    threadId: v.string(),
+    messageId: v.string(),
+    subject: v.string(),
+    from: v.string(),
+    text: v.string(),
+    hash: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const title = args.subject === "" ? `Message from ${args.from}` : args.subject;
+
+    const result = await Sources.ingest(ctx, {
+      householdId: args.householdId,
+      kind: "email",
+      title,
+      threadId: args.threadId,
+      messageId: args.messageId,
+      fromAddress: args.from,
+      text: args.text,
+      hash: args.hash,
+    });
+
+    if (result.status !== "ingested") return null;
+
+    // A reply on a thread we opened closes the question that opened it.
+    const question = await ctx.db
+      .query("questions")
+      .withIndex("by_thread", (q) => q.eq("threadId", args.threadId))
+      .unique();
+
+    if (question !== null && question.status !== "answered") {
+      await ctx.db.patch(question._id, {
+        status: "answered",
+        answeredAt: Date.now(),
+        answerSourceId: result.sourceId,
+      });
+      await Activity.record(ctx, {
+        householdId: args.householdId,
+        kind: "question_answered",
+        message: `The school answered: ${title}`,
+        obligationId: question.obligationId,
+      });
+    } else {
+      await Activity.record(ctx, {
+        householdId: args.householdId,
+        kind: "source_ingested",
+        message: `New mail: ${title}`,
+      });
+    }
+
+    await extractionPool.enqueueAction(
+      ctx,
+      internal.pipelines.extract.extractSource,
+      { sourceId: result.sourceId },
+    );
+    return null;
+  },
+});
