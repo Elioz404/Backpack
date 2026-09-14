@@ -12,7 +12,7 @@
 - **Auth:** Convex Auth
 - **AI models:** gpt-5.6-luna (OpenAI Responses API, strict JSON schema), configurable through `OPENAI_MODEL`
 - **Started:** 2026-09-14T01:00:45Z
-- **Last updated:** 2026-09-14T22:27:07Z
+- **Last updated:** 2026-09-15T00:41:09Z
 
 ## Log
 
@@ -580,6 +580,20 @@ Sources are marked `seeded`, so the board can tell a sample-only household from
 one that has read something, and the line removes itself the moment it has
 (`convex/model/example.ts`, `convex/schema.ts`, `convex/sources.ts`,
 `src/components/Board.tsx`).
+
+### 2026-09-14 - bbd96f0, 68a8746 — the repo's own paperwork
+
+The README had drifted from the code: it counted seven component mounts and ten
+tables against an actual nine and fourteen, described the rate limits as
+per-household when half of them are now deployment-wide, and documented
+deploying with the static-hosting CLI directly — which is the shape that
+published a production site whose client talked to the dev deployment.
+`npm run deploy` exists to make that impossible, so the README now names it and
+says why.
+
+The MIT licence was a line of prose and nothing else: no `LICENSE` file, no
+`license` field, so GitHub detected no licence at all. Both added
+(`README.md`, `LICENSE`, `package.json`).
 
 ### 2026-09-14 — state
 
