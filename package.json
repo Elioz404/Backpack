@@ -12,7 +12,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@convex-dev/aggregate": "^0.3.1",
     "@convex-dev/auth": "^2.0.0-alpha.1",
     "@convex-dev/presence": "^0.4.0",
     "@convex-dev/rate-limiter": "^0.3.2",
