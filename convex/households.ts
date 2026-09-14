@@ -3,6 +3,7 @@ import { components } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import * as Example from "./model/example";
 import { isValidTimeZone } from "./lib/time";
+import { rateLimiter } from "./lib/limits";
 import { requireUserId } from "./model/auth";
 import {
   createHousehold,
@@ -125,6 +126,10 @@ export const startTrial = mutation({
     const existing = await householdsForUser(ctx, userId);
     const already = existing[0];
     if (already !== undefined) return already._id;
+
+    // Checked only when one is about to be created, so a visitor returning to
+    // a board they already have is never turned away by it.
+    await rateLimiter.limit(ctx, "newTrial", { throws: true });
 
     const householdId = await createHousehold(ctx, {
       name: "Your household",

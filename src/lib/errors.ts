@@ -13,8 +13,21 @@ type TaggedError = {
     entity?: string;
     message?: string;
     upstream?: string;
+    /** The rate limiter's own shape, which is not ours to change. */
+    kind?: string;
+    name?: string;
+    retryAfter?: number;
   };
 };
+
+/** "in about four minutes" reads better than a millisecond count. */
+function inAbout(ms: number): string {
+  const minutes = Math.ceil(ms / 60_000);
+  if (minutes <= 1) return "in a minute";
+  if (minutes < 60) return `in about ${minutes} minutes`;
+  const hours = Math.ceil(minutes / 60);
+  return hours === 1 ? "in about an hour" : `in about ${hours} hours`;
+}
 
 /** Reasons worth phrasing ourselves, because the server's wording is internal. */
 const KNOWN: Record<string, string> = {
@@ -48,6 +61,18 @@ const BY_ENTITY: Record<string, string> = {
 export function explainError(caught: unknown, fallback: string): string {
   const data = (caught as TaggedError)?.data;
   if (data === undefined) return fallback;
+
+  // The rate limiter throws its own payload. Saying when to come back is the
+  // whole difference between a limit and a wall.
+  if (data.kind === "RateLimited") {
+    const when =
+      typeof data.retryAfter === "number"
+        ? ` Try again ${inAbout(data.retryAfter)}.`
+        : " Try again shortly.";
+    return data.name === "newTrial" || data.name === "crawlsOverall"
+      ? `Backpack is busy — a lot of people are trying it at once.${when}`
+      : `That is a lot at once.${when}`;
+  }
 
   if (data.code !== undefined && data.entity !== undefined) {
     const specific = BY_ENTITY[`${data.code}:${data.entity}`];

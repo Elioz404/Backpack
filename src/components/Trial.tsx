@@ -2,6 +2,7 @@ import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
 import { useConvexAuth, useMutation } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
+import { explainError } from "../lib/errors";
 import { guessTimeZone } from "../lib/format";
 import { Icon } from "./Icon";
 
@@ -40,10 +41,16 @@ export function Trial({ onReady }: { onReady: () => void }) {
         if (!isAuthenticated) await signInAnonymous();
         await startTrial({ timeZone: guessTimeZone() });
         onReady();
-      } catch {
+      } catch (caught) {
         started.current = false;
+        // The reason matters here: "everyone is trying this at once, come back
+        // in a few minutes" and "this is broken" call for different things
+        // from the reader, and only one of them is worth reloading for.
         setError(
-          "Could not start a trial board. Reload, or sign up for one instead.",
+          explainError(
+            caught,
+            "Could not start a trial board. Reload, or sign up for one instead.",
+          ),
         );
       }
     })();
@@ -64,7 +71,7 @@ export function Trial({ onReady }: { onReady: () => void }) {
             </p>
             <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
               Your own household, your own address, and an invented family on it
-              so there is something to press. No account needed.
+              so there is something to press. Nothing to sign up for.
             </p>
           </>
         ) : (

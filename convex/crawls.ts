@@ -45,6 +45,9 @@ export const beginRun = internalMutation({
       key: args.householdId,
       throws: true,
     });
+    // And again for the deployment as a whole. A household's allowance means
+    // nothing when anyone can have a new household for the asking.
+    await rateLimiter.limit(ctx, "crawlsOverall", { throws: true });
 
     return await CrawlModel.beginRun(ctx, {
       householdId: args.householdId,

@@ -91,6 +91,40 @@ export const CRAWL_RATE_LIMIT = {
 } as const;
 
 /** Outbound questions, bounded well under AgentMail's 100/day free tier. */
+/**
+ * How many trial households the deployment will hand out at a time.
+ *
+ * The per-household limits below stop one family being greedy. They do
+ * nothing about many families, and `/demo` mints a household for anyone who
+ * asks — so a loop over that URL gets a fresh allowance every time and can
+ * drain the day's Firecrawl credits and the model budget on its own. The
+ * budget ceiling would stop the spending, but it stops it for the next
+ * honest visitor too, which is the failure that actually matters.
+ *
+ * Global rather than per-visitor, because an anonymous caller has nothing
+ * stable to key on: no account, no address, no identity of any kind. Set so
+ * that a class of judges opening the demo at once is comfortable and a script
+ * is not.
+ */
+export const TRIAL_RATE_LIMIT = {
+  /** New trial boards per period. */
+  rate: 60,
+  /** One hour. */
+  periodMs: 60 * 60 * 1000,
+  /** A burst, for a link that has just been shared around. */
+  capacity: 20,
+} as const;
+
+/**
+ * And the same reasoning applied to the expensive button itself: every crawl
+ * is a dozen model calls and a dozen Firecrawl pages, whoever presses it.
+ */
+export const GLOBAL_CRAWL_RATE_LIMIT = {
+  rate: 40,
+  periodMs: 60 * 60 * 1000,
+  capacity: 12,
+} as const;
+
 export const QUESTION_RATE_LIMIT = {
   rate: 20,
   periodMs: 24 * 60 * 60 * 1000,
