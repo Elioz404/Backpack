@@ -161,4 +161,4 @@ npx convex run seed:demo '{"householdId":"<id>"}'
 
 ## Licence
 
-MIT.
+MIT — see [LICENSE](LICENSE).
