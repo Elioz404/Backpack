@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@agentmail/convex": "^0.1.0",
     "@convex-dev/aggregate": "^0.3.1",
     "@convex-dev/auth": "^2.0.0-alpha.1",
     "@convex-dev/presence": "^0.4.0",
@@ -21,7 +20,6 @@
     "@tailwindcss/vite": "^4.3.3",
     "convex": "^1.45.0",
     "date-fns": "^4.4.0",
-    "openai": "^7.15.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3"

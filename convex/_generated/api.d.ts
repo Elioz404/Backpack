@@ -40,6 +40,7 @@ import type * as presence from "../presence.js";
 import type * as questions from "../questions.js";
 import type * as schools from "../schools.js";
 import type * as seed from "../seed.js";
+import type * as sources from "../sources.js";
 import type * as users from "../users.js";
 
 import type {
@@ -81,6 +82,7 @@ declare const fullApi: ApiFromModules<{
   questions: typeof questions;
   schools: typeof schools;
   seed: typeof seed;
+  sources: typeof sources;
   users: typeof users;
 }>;
 
@@ -116,7 +118,6 @@ export declare const components: {
   authUsername: import("@convex-dev/auth/username/_generated/component.js").ComponentApi<"authUsername">;
   authPasswordProvider: import("@convex-dev/auth/providers/password/_generated/component.js").ComponentApi<"authPasswordProvider">;
   firecrawl: import("@firecrawl/firecrawl-convex/_generated/component.js").ComponentApi<"firecrawl">;
-  agentmail: import("@agentmail/convex/_generated/component.js").ComponentApi<"agentmail">;
   extractionPool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"extractionPool">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   presence: import("@convex-dev/presence/_generated/component.js").ComponentApi<"presence">;

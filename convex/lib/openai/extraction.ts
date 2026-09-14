@@ -1,7 +1,8 @@
 import { v } from "convex/values";
+import { openAiConfig } from "../config";
 import { vObligationKind } from "../../schema";
 import { clampForModel, normaliseText } from "../text";
-import { openAiClient } from "./client";
+import { respondJson } from "./client";
 
 /**
  * Reading one page or one message and reporting what it asks of the family.
@@ -227,26 +228,14 @@ function asOptionalNumber(value: unknown): number | undefined {
 export async function extractObligations(
   input: ExtractionInput,
 ): Promise<ExtractionResult> {
-  const { client, model } = openAiClient();
   const text = clampForModel(normaliseText(input.text));
 
-  const response = await client.responses.create({
-    model,
-    input: [
-      { role: "system", content: systemPrompt({ ...input, text }) },
-      { role: "user", content: userPrompt({ ...input, text }) },
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "school_obligations",
-        strict: true,
-        schema: RESPONSE_SCHEMA as unknown as Record<string, unknown>,
-      },
-    },
+  const payload = await respondJson({
+    system: systemPrompt({ ...input, text }),
+    user: userPrompt({ ...input, text }),
+    schemaName: "school_obligations",
+    schema: RESPONSE_SCHEMA as unknown as Record<string, unknown>,
   });
-
-  const payload: unknown = JSON.parse(response.output_text);
   if (
     typeof payload !== "object" ||
     payload === null ||
@@ -304,5 +293,5 @@ export async function extractObligations(
     });
   }
 
-  return { items, rejected, model };
+  return { items, rejected, model: openAiConfig().model };
 }

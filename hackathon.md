@@ -7,7 +7,7 @@
 - **Repo:** none
 - **Frontend:** Convex static hosting
 - **Convex deployment:** https://secret-minnow-38.convex.cloud (development)
-- **Components:** @convex-dev/static-hosting, @convex-dev/auth (core, username, password provider), @firecrawl/firecrawl-convex, @agentmail/convex, @convex-dev/workpool, @convex-dev/rate-limiter, @convex-dev/presence
+- **Components:** @convex-dev/static-hosting, @convex-dev/auth (core, username, password provider), @firecrawl/firecrawl-convex, @convex-dev/workpool, @convex-dev/rate-limiter, @convex-dev/presence
 - **Convex features:** schema with indexes, reactive queries, mutations, actions, internal functions, HTTP actions, typed component environment, the scheduler, pagination, cron jobs, static hosting
 - **Auth:** Convex Auth
 - **AI models:** gpt-5.6-terra (OpenAI Responses API, strict JSON schema), configurable through `OPENAI_MODEL`
@@ -169,14 +169,64 @@ household, seeded the worked example, claimed a card — and watched the row
 tint, the header count and the activity log all move off one mutation, which is
 the whole premise of a shared board.
 
+### 2026-09-13 — running it against real keys
+
+With real Firecrawl, AgentMail and OpenAI keys on the deployment, the pipeline
+was run end to end against a real school site. Three things only this could
+find, and one of them changed the architecture.
+
+**Firecrawl works as designed.** A crawl of bostonpublicschools.org read 40
+pages for 40 credits and landed 40 sources — the durable crawl, the completion
+callback, the batched ingestion and the content-hash dedupe all behaved.
+
+**`@agentmail/convex@0.1.0` cannot be configured, and has been removed.** The
+component reads `process.env.AGENTMAIL_API_KEY` inside its own isolate, where
+deployment variables are not visible, and its `convex.config` declares no typed
+environment to pass one in — so every call that reaches the API fails with
+"AGENTMAIL_API_KEY is not set on this Convex deployment" while the key is
+plainly set. 0.1.0 is the latest published version. Convex has no
+component-scoped `env set`, so the only ways through are patching the package
+or vendoring it, and both mean owning code we cannot vouch for.
+
+AgentMail is now reached over its REST API from `convex/lib/agentmail.ts`:
+create an inbox, send a message, verify a Svix signature. The signature check
+is Web Crypto HMAC against `id.timestamp.body` with a five-minute replay window
+and a constant-time compare, rather than the `svix` package, which targets Node
+and would force the webhook route into a Node action. Nothing was lost by it —
+the state that matters was always in our own tables — and the household now has
+a real address, `jealouscard638@agentmail.to`, created through that client.
+
+**The `openai` package does not run in the Convex runtime.** It sets
+`url.username` while normalising a request, which the runtime does not
+implement: every one of the 40 extractions failed with "Not implemented: set
+username for URL. Consider calling an action defined in Node.js instead". The
+same treatment fixed it — one `respondJson` over the Responses API, strict JSON
+schema intact, retry on 429 and 5xx only.
+
+**And one real defect of our own.** After that first failed batch, the board
+reported "1 page could not be read" when 39 more were stranded. `sources`
+carried a `running` state that the extraction pool already owned, so a job the
+pool dropped left the row in a state nothing counted and nothing retried —
+exactly the quiet gap the unread card exists to prevent. The state is gone: a
+source is unread until it is `done` or `failed`, both terminal, and the health
+count now asks "not done" rather than naming states it might not know about.
+The schema push validated every existing row against the narrower union, which
+is the proof no row was left behind. `sources.retryUnread` re-queues them
+without re-crawling, because the pages are already stored.
+
 ### 2026-09-13 — state
 
-Frontend and backend both live on the development deployment at
-https://secret-minnow-38.convex.site, `tsc --noEmit` clean across both
-projects. Auth, the board, claiming, the evidence drawer and the activity log
-are working end to end.
+Live on the development deployment at https://secret-minnow-38.convex.site,
+`tsc --noEmit` clean across both projects.
 
-Not yet proven: anything that spends a third-party key. `FIRECRAWL_API_KEY`,
-`AGENTMAIL_API_KEY` and `OPENAI_API_KEY` are still provisioning placeholders,
-so no crawl, no extraction and no mail has run. The board above is the seeded
-worked example — openly fictional, and labelled as such in `convex/seed.ts`.
+Proven against real services: Convex Auth, the board and its live updates,
+Firecrawl's durable crawl (40 real pages ingested), and AgentMail inbox
+creation.
+
+**Blocked on one thing: the OpenAI account has no credit.** Every extraction
+returns `credit_balance_exhausted`, so the 40 crawled pages are stored and
+queued but unread, and the board still shows only the seeded worked example —
+openly fictional, and labelled as such in `convex/seed.ts`. The moment credit
+is added, "Try reading again" reads all 40 without spending another Firecrawl
+credit. Outbound mail is likewise written but unsent, because drafting the
+question is an OpenAI call.

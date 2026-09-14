@@ -1,4 +1,4 @@
-import { openAiClient } from "./client";
+import { respondJson } from "./client";
 
 /**
  * Writing to the school office.
@@ -58,8 +58,6 @@ const SYSTEM_PROMPT = [
 export async function composeQuestion(
   input: ComposeInput,
 ): Promise<ComposedEmail> {
-  const { client, model } = openAiClient();
-
   const context =
     input.context === undefined
       ? "The parent did not tie this to a specific notice."
@@ -69,31 +67,18 @@ export async function composeQuestion(
           `The notice said, verbatim: "${input.context.quote}"`,
         ].join("\n");
 
-  const response = await client.responses.create({
-    model,
-    input: [
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: [
-          `The parent is ${input.askedBy}, of the ${input.householdName} household.`,
-          context,
-          "",
-          `What they want to know: ${input.question}`,
-        ].join("\n"),
-      },
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "school_question",
-        strict: true,
-        schema: RESPONSE_SCHEMA as unknown as Record<string, unknown>,
-      },
-    },
+  const payload = await respondJson({
+    system: SYSTEM_PROMPT,
+    user: [
+      `The parent is ${input.askedBy}, of the ${input.householdName} household.`,
+      context,
+      "",
+      `What they want to know: ${input.question}`,
+    ].join("\n"),
+    schemaName: "school_question",
+    schema: RESPONSE_SCHEMA as unknown as Record<string, unknown>,
   });
 
-  const payload: unknown = JSON.parse(response.output_text);
   if (typeof payload !== "object" || payload === null) {
     throw new Error("Model returned a payload that was not an object");
   }

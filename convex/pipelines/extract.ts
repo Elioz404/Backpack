@@ -93,15 +93,6 @@ export const failExtraction = internalMutation({
   },
 });
 
-export const beginExtraction = internalMutation({
-  args: { sourceId: v.id("sources") },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await Sources.markExtraction(ctx, args.sourceId, "running");
-    return null;
-  },
-});
-
 /**
  * The job the extraction pool runs.
  *
@@ -117,10 +108,6 @@ export const extractSource = internalAction({
       sourceId: args.sourceId,
     });
     if (context === null) return null;
-
-    await ctx.runMutation(internal.pipelines.extract.beginExtraction, {
-      sourceId: args.sourceId,
-    });
 
     try {
       const result = await extractObligations({

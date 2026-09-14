@@ -5,7 +5,6 @@ import authCore from "@convex-dev/auth/core/convex.config.js";
 import authUsername from "@convex-dev/auth/username/convex.config.js";
 import authPassword from "@convex-dev/auth/providers/password/convex.config.js";
 import firecrawl from "@firecrawl/firecrawl-convex/convex.config";
-import agentmail from "@agentmail/convex/convex.config";
 import workpool from "@convex-dev/workpool/convex.config";
 import rateLimiter from "@convex-dev/rate-limiter/convex.config";
 import presence from "@convex-dev/presence/convex.config";
@@ -38,8 +37,7 @@ const app = defineApp({
     FIRECRAWL_API_KEY: v.string(),
     FIRECRAWL_WEBHOOK_SECRET: v.optional(v.string()),
     // Declared here so our own functions read them through the generated,
-    // typed `env` rather than a raw `process.env` lookup. The AgentMail
-    // component reads its two directly off the deployment as well.
+    // typed `env` rather than a raw `process.env` lookup.
     AGENTMAIL_API_KEY: v.string(),
     AGENTMAIL_WEBHOOK_SECRET: v.optional(v.string()),
     OPENAI_API_KEY: v.string(),
@@ -71,12 +69,11 @@ app.use(firecrawl, {
   },
 });
 
-// AgentMail: the household inbox that school mail is forwarded into, and the
-// address questions to the school office are sent from. Unlike Firecrawl, this
-// component declares no typed env of its own at 0.1.0 and reads
-// AGENTMAIL_API_KEY and AGENTMAIL_WEBHOOK_SECRET off the deployment directly,
-// so there is nothing to pass in here.
-app.use(agentmail);
+// AgentMail has no component here on purpose. `@agentmail/convex@0.1.0` reads
+// its API key from `process.env` inside its own isolate, where deployment
+// variables are not visible, and declares no typed env to pass one in — so
+// every call fails with "AGENTMAIL_API_KEY is not set" even when it is. It is
+// reached over its REST API instead, from `convex/lib/agentmail.ts`.
 
 // A crawl can land a hundred pages at once; each one costs an OpenAI call.
 // The pool bounds that fan-out instead of scheduling a hundred actions.

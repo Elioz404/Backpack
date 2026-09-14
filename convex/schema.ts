@@ -1,4 +1,3 @@
-import { vOutboundId } from "@agentmail/convex";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
@@ -29,9 +28,15 @@ export const vSourceKind = v.union(
   v.literal("email"), // a message forwarded into the household inbox
 );
 
+/**
+ * Deliberately without an in-flight state. The extraction pool already owns
+ * what is running; stamping it on the row as well means a job the pool drops
+ * leaves the source stranded in a state nothing reports and nothing retries —
+ * which is how a board ends up quietly missing a term of notices. A source is
+ * unread until it is `done` or `failed`, both terminal.
+ */
 export const vExtractionState = v.union(
   v.literal("pending"),
-  v.literal("running"),
   v.literal("done"),
   v.literal("failed"),
   v.literal("skipped"), // content we had already read, byte for byte
@@ -174,6 +179,7 @@ export default defineSchema({
   })
     .index("by_household", ["householdId"])
     .index("by_household_and_hash", ["householdId", "contentHash"])
+    .index("by_household_and_extraction", ["householdId", "extraction"])
     .index("by_thread", ["threadId"])
     .index("by_crawl_run", ["crawlRunId"]),
 
@@ -222,11 +228,8 @@ export default defineSchema({
     subject: v.string(),
     body: v.string(),
     status: vQuestionStatus,
-    /**
-     * AgentMail's own handle for the queued send, stored with the component's
-     * validator so delivery state can be read back without a cast.
-     */
-    outboundId: v.optional(vOutboundId),
+    /** AgentMail's id for the sent message, once the API has accepted it. */
+    messageId: v.optional(v.string()),
     threadId: v.optional(v.string()),
     sentAt: v.optional(v.number()),
     answeredAt: v.optional(v.number()),
@@ -236,6 +239,20 @@ export default defineSchema({
     .index("by_household", ["householdId"])
     .index("by_thread", ["threadId"])
     .index("by_obligation", ["obligationId"]),
+
+  /**
+   * Webhook deliveries already handled, by AgentMail's event id.
+   *
+   * Svix retries on any non-2xx and can deliver the same event more than once
+   * regardless, so ingestion is made idempotent here rather than relying on
+   * the content hash alone — two deliveries of one message must not produce
+   * two history entries.
+   */
+  emailEvents: defineTable({
+    eventId: v.string(),
+    eventType: v.string(),
+    receivedAt: v.number(),
+  }).index("by_event_id", ["eventId"]),
 
   /** Household-visible history. Also what makes the board feel alive. */
   activity: defineTable({

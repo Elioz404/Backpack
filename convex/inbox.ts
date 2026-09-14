@@ -1,11 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import {
-  action,
-  internalMutation,
-  internalQuery,
-} from "./_generated/server";
-import { agentmail } from "./lib/agentmail";
+import { action, internalMutation, internalQuery } from "./_generated/server";
+import { AgentMailError, createInbox } from "./lib/agentmail";
 import { requireMembership } from "./model/households";
 
 /**
@@ -70,9 +66,10 @@ export const authorize = internalQuery({
 /**
  * Give this household an address, or return the one it already has.
  *
- * Idempotent: calling it twice does not create a second inbox, which matters
- * because inboxes are a metered resource and an orphaned one cannot be
- * reclaimed by the app.
+ * Doubly idempotent, because inboxes are metered and an orphaned one cannot be
+ * reclaimed by the app: the household row is checked first, and the create
+ * call carries the household id as AgentMail's `client_id`, so even a retry
+ * that races past that check returns the same inbox instead of a second one.
  */
 export const ensure = action({
   args: { householdId: v.id("households") },
@@ -94,33 +91,31 @@ export const ensure = action({
       return { address: existing.inboxAddress };
     }
 
-    const inbox = await agentmail.createInbox(ctx, {
-      displayName: `${existing.name} — Backpack`,
-    });
-
-    const inboxId = readField(inbox, "inbox_id");
-    const address = readField(inbox, "address") ?? inboxId;
-
-    if (inboxId === null || address === null) {
-      throw new ConvexError({
-        code: "UPSTREAM",
-        message: "AgentMail returned an inbox without an id or address",
+    let inbox;
+    try {
+      inbox = await createInbox({
+        displayName: `${existing.name} — Backpack`,
+        clientId: args.householdId,
       });
+    } catch (error) {
+      if (error instanceof AgentMailError) {
+        throw new ConvexError({
+          code: "UPSTREAM",
+          // AgentMail's own code, so the UI can tell "out of inboxes" from
+          // "bad key" instead of showing one shrug for both.
+          upstream: error.code ?? String(error.status),
+          message: error.message,
+        });
+      }
+      throw error;
     }
 
     await ctx.runMutation(internal.inbox.attachInbox, {
       householdId: args.householdId,
-      inboxId,
-      inboxAddress: address,
+      inboxId: inbox.inbox_id,
+      inboxAddress: inbox.email,
     });
 
-    return { address };
+    return { address: inbox.email };
   },
 });
-
-/** The client returns the AgentMail payload as-is, so read it defensively. */
-function readField(payload: unknown, key: string): string | null {
-  if (typeof payload !== "object" || payload === null) return null;
-  const value = (payload as Record<string, unknown>)[key];
-  return typeof value === "string" && value !== "" ? value : null;
-}

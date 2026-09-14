@@ -1,14 +1,13 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Id } from "./_generated/dataModel";
 import {
   action,
   internalMutation,
   internalQuery,
   query,
-  type QueryCtx,
 } from "./_generated/server";
-import { agentmail } from "./lib/agentmail";
+import { AgentMailError, sendMessage } from "./lib/agentmail";
 import { rateLimiter } from "./lib/limits";
 import { composeQuestion } from "./lib/openai/compose";
 import * as Activity from "./model/activity";
@@ -36,6 +35,7 @@ export const list = query({
       sentAt: v.union(v.number(), v.null()),
       answeredAt: v.union(v.number(), v.null()),
       obligationId: v.union(v.id("obligations"), v.null()),
+      error: v.union(v.string(), v.null()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -47,54 +47,19 @@ export const list = query({
       .order("desc")
       .take(25);
 
-    return await Promise.all(
-      questions.map(async (question) => ({
-        _id: question._id,
-        subject: question.subject,
-        body: question.body,
-        toAddress: question.toAddress,
-        // Delivery state lives in the component and changes after this row is
-        // written. Reading it here rather than copying it across on a cron
-        // keeps the UI honest: the query re-runs when the component's row
-        // moves, so "sending" becomes "sent" or "bounced" on its own.
-        status: await liveStatus(ctx, question),
-        sentAt: question.sentAt ?? null,
-        answeredAt: question.answeredAt ?? null,
-        obligationId: question.obligationId ?? null,
-      })),
-    );
+    return questions.map((question) => ({
+      _id: question._id,
+      subject: question.subject,
+      body: question.body,
+      toAddress: question.toAddress,
+      status: question.status,
+      sentAt: question.sentAt ?? null,
+      answeredAt: question.answeredAt ?? null,
+      obligationId: question.obligationId ?? null,
+      error: question.error ?? null,
+    }));
   },
 });
-
-/**
- * Overlay the component's delivery state onto a question row.
- *
- * An answered question stays answered — a reply is the terminal state this
- * product cares about, and it outranks whatever the send pipeline last said.
- */
-async function liveStatus(
-  ctx: { runQuery: QueryCtx["runQuery"] },
-  question: Doc<"questions">,
-): Promise<Doc<"questions">["status"]> {
-  if (question.status === "answered" || question.outboundId === undefined) {
-    return question.status;
-  }
-  const delivery = await agentmail.status(ctx, question.outboundId);
-  if (delivery === null) return question.status;
-
-  switch (delivery.status) {
-    case "sent":
-    case "delivered":
-      return "sent";
-    case "bounced":
-    case "complained":
-    case "rejected":
-    case "failed":
-      return "failed";
-    default:
-      return "sending";
-  }
-}
 
 /**
  * Gather everything the draft needs, and prove the family may send it, before
@@ -163,18 +128,17 @@ export const prepare = internalQuery({
 });
 
 /**
- * Record and enqueue the send, in one transaction.
+ * Claim the allowance and record the intent, before the message goes out.
  *
- * `sendMessage` enqueues from a mutation — the component's own workpool does
- * the talking to AgentMail, with retries — so a question row and its outbound
- * message are committed together or not at all.
+ * The rate limit is checked in the same transaction as the insert, so a
+ * household that is out of allowance never gets a row — and a row never exists
+ * without having been paid for.
  */
-export const send = internalMutation({
+export const record = internalMutation({
   args: {
     householdId: v.id("households"),
     obligationId: v.optional(v.id("obligations")),
     askedById: v.id("users"),
-    inboxId: v.string(),
     toAddress: v.string(),
     subject: v.string(),
     body: v.string(),
@@ -186,16 +150,7 @@ export const send = internalMutation({
       throws: true,
     });
 
-    const outboundId = await agentmail.sendMessage(ctx, args.inboxId, {
-      to: args.toAddress,
-      subject: args.subject,
-      text: args.body,
-      // Labelled so the thread is identifiable in the AgentMail inbox itself,
-      // not only through this app.
-      labels: ["backpack", "school-question"],
-    });
-
-    const questionId = await ctx.db.insert("questions", {
+    return await ctx.db.insert("questions", {
       householdId: args.householdId,
       obligationId: args.obligationId,
       askedBy: args.askedById,
@@ -203,19 +158,48 @@ export const send = internalMutation({
       subject: args.subject,
       body: args.body,
       status: "sending",
-      outboundId,
+    });
+  },
+});
+
+export const markSent = internalMutation({
+  args: {
+    questionId: v.id("questions"),
+    messageId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const question = await ctx.db.get(args.questionId);
+    if (question === null) return null;
+
+    await ctx.db.patch(args.questionId, {
+      status: "sent",
+      messageId: args.messageId,
+      threadId: args.threadId,
       sentAt: Date.now(),
     });
 
     await Activity.record(ctx, {
-      householdId: args.householdId,
+      householdId: question.householdId,
       kind: "question_sent",
-      message: `Asked the school: ${args.subject}`,
-      actorId: args.askedById,
-      obligationId: args.obligationId,
+      message: `Asked the school: ${question.subject}`,
+      actorId: question.askedBy,
+      obligationId: question.obligationId,
     });
+    return null;
+  },
+});
 
-    return questionId;
+export const markFailed = internalMutation({
+  args: { questionId: v.id("questions"), error: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.questionId, {
+      status: "failed",
+      error: args.error,
+    });
+    return null;
   },
 });
 
@@ -266,15 +250,45 @@ export const ask = action({
       context: prepared.context ?? undefined,
     });
 
-    const questionId = await ctx.runMutation(internal.questions.send, {
+    const questionId = await ctx.runMutation(internal.questions.record, {
       householdId: args.householdId,
       obligationId: args.obligationId,
       askedById: prepared.askedById,
-      inboxId: prepared.inboxId,
       toAddress: prepared.officeEmail,
       subject: draft.subject,
       body: draft.body,
     });
+
+    try {
+      const sent = await sendMessage(prepared.inboxId, {
+        to: prepared.officeEmail,
+        subject: draft.subject,
+        text: draft.body,
+        // Labelled so the thread is identifiable in the AgentMail inbox
+        // itself, not only through this app.
+        labels: ["backpack", "school-question"],
+      });
+
+      await ctx.runMutation(internal.questions.markSent, {
+        questionId,
+        messageId: sent.message_id,
+        threadId: sent.thread_id,
+      });
+    } catch (error) {
+      const message =
+        error instanceof AgentMailError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      // Recorded on the row rather than only thrown, so the family can see
+      // which question did not go out and why.
+      await ctx.runMutation(internal.questions.markFailed, {
+        questionId,
+        error: message,
+      });
+      throw new ConvexError({ code: "SEND_FAILED", message });
+    }
 
     return { questionId, subject: draft.subject };
   },

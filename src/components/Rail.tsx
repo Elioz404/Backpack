@@ -27,6 +27,7 @@ export function Rail({
       <InboxCard householdId={householdId} inboxAddress={inboxAddress} />
       <ChildrenCard householdId={householdId} />
       <SchoolsCard householdId={householdId} />
+      <UnreadCard householdId={householdId} />
       <ActivityLog householdId={householdId} />
     </aside>
   );
@@ -333,6 +334,57 @@ function CrawlTicker({
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * Pages that reached the household but could not be read.
+ *
+ * Shown only when there are some. A board quietly missing a third of the
+ * term's notices looks identical to a board with nothing on it, so the gap is
+ * stated plainly, with the reason and a way to try again — the pages are
+ * already stored, so this costs no crawl.
+ */
+function UnreadCard({ householdId }: { householdId: Id<"households"> }) {
+  const health = useQuery(api.sources.health, { householdId });
+  const retry = useMutation(api.sources.retryUnread);
+  const [busy, setBusy] = useState(false);
+
+  if (health === undefined) return null;
+  if (health.unread === 0) return null;
+
+  return (
+    <section className="grid gap-3">
+      <RuledHeading trailing={String(health.unread)}>Not read yet</RuledHeading>
+
+      <p className="text-[13px] leading-relaxed text-ink-soft">
+        {health.unread} page{health.unread === 1 ? "" : "s"} reached your
+        household but {health.unread === 1 ? "has" : "have"} not been read onto
+        the board.
+      </p>
+
+      {health.lastError !== null ? (
+        <p className="font-mono text-[11px] leading-relaxed break-words text-ink-faint">
+          {health.lastError.slice(0, 180)}
+        </p>
+      ) : null}
+
+      <Button
+        size="sm"
+        disabled={busy}
+        icon={busy ? <Spinner /> : <Icon name="undo" size={13} />}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await retry({ householdId });
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "Queueing…" : "Try reading again"}
+      </Button>
+    </section>
   );
 }
 

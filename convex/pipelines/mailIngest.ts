@@ -51,14 +51,36 @@ function readMessage(raw: unknown): {
 }
 
 /**
- * The component hands every verified inbound message here, already deduped by
- * event id. Hashing the body needs `crypto.subtle`, so the work moves to an
- * action and this stays a routing decision.
+ * Every verified inbound webhook lands here.
+ *
+ * Two jobs: refuse a delivery we have already handled, and decide what the
+ * message is. Svix retries on any non-2xx and can redeliver regardless, so the
+ * event id is recorded first — the content hash further down would catch a
+ * duplicate body, but not a duplicate history entry.
+ *
+ * Hashing the body needs `crypto.subtle`, which a mutation does not have, so
+ * the reading itself moves to an action and this stays a routing decision.
  */
 export const onMessageReceived = internalMutation({
-  args: { message: v.any(), thread: v.any(), eventId: v.string() },
+  args: {
+    eventId: v.string(),
+    eventType: v.string(),
+    message: v.any(),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const seen = await ctx.db
+      .query("emailEvents")
+      .withIndex("by_event_id", (q) => q.eq("eventId", args.eventId))
+      .unique();
+    if (seen !== null) return null;
+
+    await ctx.db.insert("emailEvents", {
+      eventId: args.eventId,
+      eventType: args.eventType,
+      receivedAt: Date.now(),
+    });
+
     const message = readMessage(args.message);
     if (message === null || message.text.trim() === "") return null;
 
