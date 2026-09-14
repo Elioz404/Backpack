@@ -406,6 +406,32 @@ explicitly bound" — and fixes it by declaring typed component env. It is open
 and unmerged, so npm still ships the broken 0.1.0 and the REST client here
 stays.
 
+### 2026-09-14 — the trial is the product, not a tour of it
+
+The public example board was read-only, because it was one shared board and a
+visitor who could change it would change what the next visitor saw. That made
+it a display case: it showed what the pipeline produces and hid the thing that
+distinguishes the app, which is two people moving the same list. Nothing on it
+could be pressed.
+
+The reason it existed — that a judge could not get an inbox on a three-inbox
+tier — had already been removed by sub-addressing. So it was replaced rather
+than patched.
+
+`/demo` now signs the visitor in anonymously through Convex Auth's anonymous
+provider, creates them a household in their own name, fills it with the worked
+example and falls through to the ordinary board. It is a real session: their
+own household, their own address, every control live, private to them. There is
+no second, lesser version of the app to keep working, because it is the same
+code path a signed-up family uses.
+
+The two pieces compose, which is what makes it free: anonymous sessions give
+unlimited trial households, and sub-addressing gives each one a real address
+without consuming an inbox. Verified from a cleared browser — no account,
+board in a few seconds, claimed a card and watched the header move to
+"9 OPEN · 1 TAKEN", then pressed Get an address and received
+`helpfulwinter244+<householdId>@agentmail.to` with the inbox count unmoved.
+
 ### 2026-09-13 — state
 
 Live on the development deployment at https://secret-minnow-38.convex.site,

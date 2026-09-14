@@ -27,6 +27,26 @@ export const createPasswordUser = internalMutation({
   },
 });
 
+/**
+ * Mint the user row for an anonymous visitor.
+ *
+ * Every anonymous sign-in is a new account — the provider has no way to return
+ * to a previous one — so this runs once per visitor. The name is what appears
+ * on a card they claim, and "You" reads correctly for the one case that
+ * matters: a single person trying the product alone.
+ */
+export const createAnonymousUser = internalMutation({
+  args: {
+    provider: v.literal("anonymous"),
+    providerAccountId: v.string(),
+    profile: v.object({}),
+  },
+  returns: v.id("users"),
+  handler: async (ctx) => {
+    return await ctx.db.insert("users", { displayName: "You" });
+  },
+});
+
 /** The signed-in user, or `null` when signed out. Drives the whole shell. */
 export const me = query({
   args: {},

@@ -104,6 +104,43 @@ export const create = mutation({
 });
 
 /**
+ * Everything a first visit needs, in one call: a household, and a board with
+ * something on it.
+ *
+ * Separate from `create` because the two are asked by different people for
+ * different reasons. A family creating a household names it and means it; a
+ * visitor trying the product wants to be looking at a board, and every
+ * question asked before that is a question they did not come to answer.
+ *
+ * Idempotent: someone who already has a household gets that one back rather
+ * than a second.
+ */
+export const startTrial = mutation({
+  args: { timeZone: v.string() },
+  returns: v.id("households"),
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+
+    const existing = await householdsForUser(ctx, userId);
+    const already = existing[0];
+    if (already !== undefined) return already._id;
+
+    const householdId = await createHousehold(ctx, {
+      name: "Your household",
+      // A board of local dates shown in somebody else's zone is a board of
+      // wrong dates, so the caller's own zone is used when it is usable.
+      timeZone: isValidTimeZone(args.timeZone) ? args.timeZone : "UTC",
+      userId,
+    });
+
+    const household = await ctx.db.get(householdId);
+    if (household !== null) await Example.fill(ctx, household);
+
+    return householdId;
+  },
+});
+
+/**
  * Fill this household with the worked example.
  *
  * A new board is empty, and the honest ways to fill it — crawl a school site,

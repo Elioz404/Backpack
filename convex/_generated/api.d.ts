@@ -14,7 +14,6 @@ import type * as budget from "../budget.js";
 import type * as children from "../children.js";
 import type * as crawls from "../crawls.js";
 import type * as crons from "../crons.js";
-import type * as demo from "../demo.js";
 import type * as households from "../households.js";
 import type * as http from "../http.js";
 import type * as inbox from "../inbox.js";
@@ -60,7 +59,6 @@ declare const fullApi: ApiFromModules<{
   children: typeof children;
   crawls: typeof crawls;
   crons: typeof crons;
-  demo: typeof demo;
   households: typeof households;
   http: typeof http;
   inbox: typeof inbox;
@@ -125,6 +123,7 @@ export declare const components: {
   auth: import("@convex-dev/auth/core/_generated/component.js").ComponentApi<"auth">;
   authUsername: import("@convex-dev/auth/username/_generated/component.js").ComponentApi<"authUsername">;
   authPasswordProvider: import("@convex-dev/auth/providers/password/_generated/component.js").ComponentApi<"authPasswordProvider">;
+  authAnonymous: import("@convex-dev/auth/providers/anonymous/_generated/component.js").ComponentApi<"authAnonymous">;
   firecrawl: import("@firecrawl/firecrawl-convex/_generated/component.js").ComponentApi<"firecrawl">;
   extractionPool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"extractionPool">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;

@@ -4,6 +4,7 @@ import staticHosting from "@convex-dev/static-hosting/convex.config";
 import authCore from "@convex-dev/auth/core/convex.config.js";
 import authUsername from "@convex-dev/auth/username/convex.config.js";
 import authPassword from "@convex-dev/auth/providers/password/convex.config.js";
+import authAnonymous from "@convex-dev/auth/providers/anonymous/convex.config.js";
 import firecrawl from "@firecrawl/firecrawl-convex/convex.config";
 import workpool from "@convex-dev/workpool/convex.config";
 import rateLimiter from "@convex-dev/rate-limiter/convex.config";
@@ -62,6 +63,9 @@ app.use(authCore, {
 });
 app.use(authUsername);
 app.use(authPassword);
+// Lets someone try the real product without inventing a password first. See
+// the note in convex/auth.ts.
+app.use(authAnonymous);
 
 // Firecrawl: durable crawls of a school site, with progress the UI subscribes to.
 app.use(firecrawl, {

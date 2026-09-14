@@ -2,7 +2,7 @@
 
 **One live board of everything the school year asks of your family — with the sentence from the school's own notice that says so.**
 
-🔗 **[resilient-mastiff-559.convex.site](https://resilient-mastiff-559.convex.site)** · **[see an example board](https://resilient-mastiff-559.convex.site/demo)** (no account needed) · built for the [Convex All Gas Hackathon](https://convex.dev/hackathons/all-gas)
+🔗 **[resilient-mastiff-559.convex.site](https://resilient-mastiff-559.convex.site)** · **[try it without signing up](https://resilient-mastiff-559.convex.site/demo)** · built for the [Convex All Gas Hackathon](https://convex.dev/hackathons/all-gas)
 
 ---
 
@@ -133,9 +133,12 @@ npx convex run seed:demo '{"householdId":"<id>"}'
   long before it runs out of money — a fifteen-page crawl costs about one cent
   and leaves room to run it again. Raise `crawlLimit` per school, or
   `OPENAI_MODEL`, once the account's tier allows it.
-- `DEMO_HOUSEHOLD_ID` names one household whose board is readable at `/demo`
-  without an account. It is read-only, serves that id and no other, and
-  redacts the sender address on email sources, which are working inboxes.
+- `/demo` is not a tour. It signs the visitor in anonymously, gives them a real
+  household with a real address and a board already worth looking at, and hands
+  them the same app a signed-up family uses — every control live, private to
+  them. A read-only demo would show the output while hiding the point, which is
+  two people moving the same list, and it would be a second lesser version of
+  the app to keep working.
 
 ## Licence
 

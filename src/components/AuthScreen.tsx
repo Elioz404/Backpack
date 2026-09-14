@@ -78,11 +78,11 @@ export function AuthScreen() {
               href="/demo"
               className="focus-ring inline-flex items-center gap-1.5 text-[14.5px] font-medium text-ballpoint underline underline-offset-2"
             >
-              See an example board
+              Try it without signing up
               <Icon name="chevron" size={13} />
             </a>
             <span className="ml-2 text-[13.5px] text-ink-faint">
-              no account needed
+              a real board of your own, in a few seconds
             </span>
           </p>
 

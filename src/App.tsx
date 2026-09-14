@@ -5,9 +5,10 @@ import {
   useAuthActions,
 } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
+import { useState } from "react";
 import { api } from "../convex/_generated/api";
 import { AuthScreen } from "./components/AuthScreen";
-import { DemoBoard } from "./components/DemoBoard";
+import { Trial } from "./components/Trial";
 import { Board } from "./components/Board";
 import { Icon } from "./components/Icon";
 import { Onboarding } from "./components/Onboarding";
@@ -18,10 +19,16 @@ import { Onboarding } from "./components/Onboarding";
  * then the board, which is the whole product.
  */
 export function App() {
-  // One path, read once. The example board is public by design, so it is
-  // answered before the auth gate rather than behind it.
-  if (window.location.pathname.replace(/\/+$/, "") === "/demo") {
-    return <DemoBoard />;
+  // `/demo` is not a separate, lesser app. It signs the visitor in
+  // anonymously, gives them a real household, and then falls through to the
+  // same board a signed-up family sees — so there is only ever one product to
+  // keep working.
+  const [trialDone, setTrialDone] = useState(false);
+  const wantsTrial =
+    window.location.pathname.replace(/\/+$/, "") === "/demo";
+
+  if (wantsTrial && !trialDone) {
+    return <Trial onReady={() => setTrialDone(true)} />;
   }
 
   return (
